@@ -1,16 +1,15 @@
-import React from "react";
-import AdminHero from "../components/AdminHero";
-import StatsSection from "../components/StatsSection";  
-import ApplicationsSection from "../components/ApplicationsSection";
+import AdminCard from "../components/AdminCard"
+import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import AdminHero from "../components/AdminHero";
 
 export default function AdminPage() {
   return (
     <main className="bg-gray-50 min-h-screen">
+      <Navbar/>
       <AdminHero />
-      {/* <StatsSection /> */}
-      <ApplicationsSection />
-      <Footer />
+      <AdminCard />
+      <Footer/>
     </main>
   );
 }

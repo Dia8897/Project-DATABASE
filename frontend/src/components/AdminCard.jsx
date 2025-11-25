@@ -25,14 +25,13 @@ export default function ApplicationsSection() {
       Applications
     </h2>
 
-    <div className="flex flex-wrap -mx-4">
+    <div className="flex flex-wrap -mx-4 gap-4">
       {applicants.map((applicant, idx) => (
         <div
   key={idx}
   className="bg-white shadow-lg rounded-xl p-6 border hover:shadow-xl transition transform hover:scale-105 flex flex-col justify-between w-full sm:w-1/2 md:w-1/3 lg:w-1/4 xl:w-1/5 mb-6 min-h-[250px]"
 
 >
-      
           <div className="flex items-center mb-4">
             <User size={32} className="text-indigo-600 mr-3" />
             <div>
