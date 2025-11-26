@@ -1,100 +1,80 @@
 import React from "react";
-
-// EventCard.jsx
-// A simple, testable React component for the frontend folder.
-// TailwindCSS utility classes are used for styling.
-
 export default function EventCard({
-    event = {},
-    onApply = () => { },
-    onRequestDress = () => { },
+event = {},
+onApply = () => {},
+onViewDetails = () => {},
 }) {
-    const {
-        title = "Untitled Event",
-        date = "Date TBA",
-        location = "Location TBA",
-        dress = "Not specified",
-        hostsAdmitted = 0,
-        hostsRequested = 0,
-        image = null,
-        shortDescription = "No description provided.",
-    } = event;
+// 🧷 Safely extract fields from the event object
+const {
+eventId,
+title,
+date,
+location,
+nbOfHosts,
+acceptedHostsCount,
+dressCode,
+shortDescription,
+imageUrl,
+} = event;
 
-    return (
-        <article className="max-w-md rounded-2xl shadow-md overflow-hidden bg-white">
-            {image ? (
-                <img src={image} alt={title} className="w-full h-44 object-cover" />
-            ) : (
-                <div className="w-full h-44 bg-gray-100 flex items-center justify-center text-gray-400">
-                    No image
-                </div>
-            )}
+const filled = acceptedHostsCount ?? 0;
+const requested = nbOfHosts ?? 0;
 
-            <div className="p-4">
-                <h3 className="text-xl font-semibold text-gray-800">{title}</h3>
-                <p className="mt-1 text-sm text-gray-600">{shortDescription}</p>
+return (
+<div className="bg-white rounded-2xl shadow-md hover:shadow-lg transition flex flex-col overflow-hidden">
+{imageUrl && (
+<img
+src={imageUrl}
+alt={title}
+className="h-40 w-full object-cover"
+/>
+)}
 
-                <div className="mt-3 text-sm text-gray-700 grid grid-cols-2 gap-2">
-                    <div>
-                        <div className="text-xs text-gray-500">Date</div>
-                        <div className="font-medium">{date}</div>
-                    </div>
+<div className="p-4 flex flex-col flex-1">
+<h3 className="text-lg font-semibold text-gray-800 mb-1">
+{title || "Untitled Event"}
+</h3>
 
-                    <div>
-                        <div className="text-xs text-gray-500">Location</div>
-                        <div className="font-medium">{location}</div>
-                    </div>
+<p className="text-sm text-gray-600 mb-3 line-clamp-2">
+{shortDescription || "No description available."}
+</p>
 
-                    <div>
-                        <div className="text-xs text-gray-500">Dress</div>
-                        <div className="font-medium">{dress}</div>
-                    </div>
+<div className="text-sm text-gray-600 mb-1">
+<span className="font-medium">Date:</span> {date || "TBA"}
+</div>
 
-                    <div>
-                        <div className="text-xs text-gray-500">Hosts</div>
-                        <div className="font-medium">{hostsAdmitted} / {hostsRequested}</div>
-                    </div>
-                </div>
+<div className="text-sm text-gray-600 mb-1">
+<span className="font-medium">Location:</span>{" "}
+{location || "TBA"}
+</div>
 
-                <div className="mt-4 flex items-center gap-3">
-                    <button
-                        onClick={() => onApply(event)}
-                        className="flex-1 py-2 px-4 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition"
-                        aria-label={`Apply for ${title}`}
-                    >
-                        Apply
-                    </button>
+<div className="text-sm text-gray-600 mb-1">
+<span className="font-medium">Hosts:</span>{" "}
+{filled} / {requested || "?"}
+</div>
 
-                    <button
-                        onClick={() => onRequestDress(event)}
-                        className="py-2 px-3 rounded-lg border border-gray-200 text-gray-700 text-sm hover:bg-gray-50 transition"
-                        aria-label={`Request dress for ${title}`}
-                    >
-                        Request Dress
-                    </button>
-                </div>
-            </div>
-        </article>
-    );
+<div className="text-xs text-gray-500 mb-4">
+<span className="font-medium">Dress code:</span>{" "}
+{dressCode || "Not specified"}
+</div>
+
+{/* Buttons */}
+<div className="mt-auto flex gap-2">
+<button
+onClick={() => onApply(event)}
+className="flex-1 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition"
+>
+Apply
+</button>
+
+<button
+onClick={() => onViewDetails(event)}
+className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+>
+View Details
+</button>
+</div>
+</div>
+</div>
+);
 }
-
-// Usage example (for quick manual test):
-//
-// import EventCard from "./EventCard";
-//
-// const sampleEvent = {
-//   title: "Gala Night - Charity",
-//   date: "2026-01-15",
-//   location: "Ritz Ballroom",
-//   dress: "Black Tie",
-//   hostsAdmitted: 12,
-//   hostsRequested: 20,
-//   shortDescription: "A charity gala with VIP guests.",
-//   image: "/images/gala.jpg",
-//};
-//
-// <EventCard
-//   event={sampleEvent}
-//   onApply={(e) => console.log("apply clicked", e.title)}
-//   onRequestDress={(e) => console.log("dress requested for", e.title)}
-///>
