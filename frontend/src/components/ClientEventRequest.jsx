@@ -1,68 +1,94 @@
 import React from "react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 export default function ClientEventRequest({
+  occasions,
   eventType,
-  eventDate,
+  eventDate,      // Date or null
   guests,
   onTypeChange,
-  onDateChange,
+  onDateChange,   // will receive a Date
   onGuestsChange,
   onSubmit,
 }) {
   return (
-    <section className="border rounded-xl p-6 shadow-sm bg-white">
-      <h2 className="text-xl font-semibold mb-4">Request a New Event</h2>
+    <section className="w-full flex flex-col items-center">
+      <div className="bg-[#FCF5EE] rounded-3xl px-8 py-10 w-full max-w-9xl shadow-sm">
+        <h2 className="text-3xl font-semibold tracking-wide text-center">
+          What is Your Occasion?
+        </h2>
+        <p className="mt-2 text-sm text-gray-500 text-center">
+          (Select any occasion from the list below!)
+        </p>
 
-      <form className="space-y-4" onSubmit={onSubmit}>
-        {/* EVENT TYPE */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Event type</label>
-          <select
-            className="w-full border rounded-lg px-3 py-2"
-            value={eventType}
-            onChange={(e) => onTypeChange(e.target.value)}
+        {/* ICONS GRID */}
+        <div className="mt-6 grid grid-cols-2 md:grid-cols-3 gap-6 justify-items-center">
+          {occasions.map((o) => (
+            <label
+              key={o.id}
+              className="flex flex-col items-center gap-2 cursor-pointer"
+            >
+              <img
+                src={o.icon}
+                alt={o.label}
+                className="w-20 h-20 object-contain"
+              />
+              <div className="flex items-center gap-1 text-sm">
+                <input
+                  type="radio"
+                  name="eventType"
+                  value={o.label}
+                  checked={eventType === o.label}
+                  onChange={() => onTypeChange(o.label)}
+                />
+                <span>{o.label}</span>
+              </div>
+            </label>
+          ))}
+        </div>
+
+        {/* DATE + GUESTS + SUBMIT */}
+        <form onSubmit={onSubmit} className="mt-8 space-y-4 max-w-md mx-auto">
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Event date
+              </label>
+              <DatePicker
+                selected={eventDate}                     // Date or null
+                onChange={(date) => onDateChange(date)}  // pass Date up
+                placeholderText="Select a date"
+                dateFormat="yyyy-MM-dd"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
+                popperClassName="z-50"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Guests
+              </label>
+              <input
+                type="number"
+                min="1"
+                placeholder="e.g. 120"
+                value={guests}
+                onChange={(e) => onGuestsChange(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
+              />
+            </div>
+          </div>
+<div className="flex justify-center">
+          <button
+            type="submit"
+            className="mt-3 inline-flex items-center justify-center rounded-xl bg-[#D9A299] px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-pink-700 transition"
           >
-            <option>Wedding</option>
-            <option>Engagement</option>
-            <option>Birthday Party</option>
-            <option>Corporate Event</option>
-            <option>Graduation</option>
-            <option>Baby Shower</option>
-          </select>
-        </div>
-
-        {/* EVENT DATE */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Event date</label>
-          <input
-            type="date"
-            className="w-full border rounded-lg px-3 py-2"
-            value={eventDate}
-            onChange={(e) => onDateChange(e.target.value)}
-          />
-        </div>
-
-        {/* GUESTS */}
-        <div>
-          <label className="block text-sm font-medium mb-1">Guests</label>
-          <input
-            type="number"
-            className="w-full border rounded-lg px-3 py-2"
-            value={guests}
-            onChange={(e) => onGuestsChange(e.target.value)}
-            min="1"
-            placeholder="e.g. 120"
-          />
-        </div>
-
-        {/* SUBMIT */}
-        <button
-          type="submit"
-          className="w-full py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition"
-        >
-          Submit event request
-        </button>
-      </form>
+            Submit event request
+          </button>
+      </div>
+        </form>
+      </div>
     </section>
   );
 }

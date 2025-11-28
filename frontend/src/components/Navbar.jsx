@@ -38,19 +38,19 @@ export default function Navbar({ onJoinClick }) {
     const toggleMenu = () => setOpen(!open);
 
     return (
-        <header className="w-full fixed top-0 left-0 z-50 bg-white shadow-sm">
+        <header className="w-full fixed top-0 left-0 z-50 bg-[#D9A299] shadow-sm">
             <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
                 {/* Logo */}
-                <div className="text-2xl font-bold text-indigo-600 select-none">
-                    Hostify
+                <div className="text-2xl font-bold text-white select-none">
+                    Gatherly
                 </div>
 
                 {/* Desktop Links */}
                 <ul className="hidden md:flex items-center space-x-8 text-gray-700 font-medium">
-                    <li className="hover:text-indigo-600 transition cursor-pointer">Home</li>
-                    <li className="hover:text-indigo-600 transition cursor-pointer">About</li>
-                    <li className="hover:text-indigo-600 transition cursor-pointer">Our Events</li>
-                    <li className="hover:text-indigo-600 transition cursor-pointer">Contact</li>
+                    <li className="hover:text-white transition cursor-pointer">Home</li>
+                    <li className="hover:text-white transition cursor-pointer">About</li>
+                    <li className="hover:text-white transition cursor-pointer">Our Events</li>
+                    <li className="hover:text-white transition cursor-pointer">Contact</li>
                 </ul>
 
 
