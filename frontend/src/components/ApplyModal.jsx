@@ -171,7 +171,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-100">
-          <p className="text-xs uppercase tracking-widest text-indigo-500 font-semibold mb-2">
+          <p className="text-xs uppercase tracking-widest text-ocean font-semibold mb-2">
             Application for
           </p>
           <h2 className="text-2xl font-bold text-gray-900">{event.title}</h2>
@@ -194,7 +194,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
             </div>
 
             {currentUser ? (
-              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-2">
+              <div className="rounded-2xl border border-gray-100 bg-cream p-4 space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
                     <p className="text-base font-semibold text-gray-900">
@@ -243,7 +243,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
                     type="text"
                     value={manualApplicant.firstName}
                     onChange={handleManualApplicantChange("firstName")}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-ocean focus:border-ocean"
                   />
                   {errors.firstName && (
                     <p className="text-xs text-red-500 mt-1">{errors.firstName}</p>
@@ -255,7 +255,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
                     type="text"
                     value={manualApplicant.lastName}
                     onChange={handleManualApplicantChange("lastName")}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-ocean focus:border-ocean"
                   />
                   {errors.lastName && (
                     <p className="text-xs text-red-500 mt-1">{errors.lastName}</p>
@@ -267,7 +267,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
                     type="email"
                     value={manualApplicant.email}
                     onChange={handleManualApplicantChange("email")}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-ocean focus:border-ocean"
                   />
                   {errors.email && (
                     <p className="text-xs text-red-500 mt-1">{errors.email}</p>
@@ -279,7 +279,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
                     type="tel"
                     value={manualApplicant.phone}
                     onChange={handleManualApplicantChange("phone")}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-ocean focus:border-ocean"
                   />
                 </div>
               </div>
@@ -299,8 +299,8 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
                   onClick={() => setRequestedRole(value)}
                   className={`flex-1 px-3 py-3 rounded-xl border text-sm font-semibold transition ${
                     requestedRole === value
-                      ? "bg-indigo-600 text-white border-indigo-600"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                      ? "bg-ocean text-white border-ocean"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-cream"
                   }`}
                 >
                   {label}
@@ -320,7 +320,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
                   className={`px-4 py-2 rounded-full border text-sm font-medium transition ${
                     form.experience === option.value
                       ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-cream"
                   }`}
                 >
                   {option.label}
@@ -338,8 +338,8 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
                     onClick={() => toggleArrayField("languages", lang)}
                     className={`px-3 py-2 rounded-lg border text-sm transition ${
                       form.languages.includes(lang)
-                        ? "bg-indigo-50 text-indigo-700 border-indigo-300"
-                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                        ? "bg-sky text-ocean border-ocean/50"
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-cream"
                     }`}
                   >
                     {lang}
@@ -364,8 +364,8 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
                   onClick={() => toggleArrayField("availability", slot)}
                   className={`px-4 py-3 rounded-xl border text-sm font-semibold text-left transition ${
                     form.availability.includes(slot)
-                      ? "bg-indigo-600 text-white border-indigo-600"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                      ? "bg-ocean text-white border-ocean"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-cream"
                   }`}
                 >
                   {slot}
@@ -381,7 +381,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
                 rows={3}
                 value={form.motivation}
                 onChange={handleInputChange("motivation")}
-                className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-ocean focus:border-ocean"
                 placeholder="Tell us about your hosting style, certifications, or anything the coordinator should know."
               />
             </div>
@@ -396,7 +396,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
               <span>Request dress for this event</span>
             </label>
 
-            <label className="flex items-start gap-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-xl border border-gray-200">
+            <label className="flex items-start gap-2 text-sm text-gray-600 bg-cream p-3 rounded-xl border border-gray-200">
               <input
                 type="checkbox"
                 checked={form.agreeToPolicy}
@@ -416,14 +416,14 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 border border-gray-300 hover:bg-gray-50"
+              className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 border border-gray-300 hover:bg-cream"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={disableSubmit}
-              className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-ocean hover:bg-ocean/80 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {submitting ? "Submitting…" : "Submit application"}
             </button>

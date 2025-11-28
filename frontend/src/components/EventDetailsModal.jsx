@@ -45,7 +45,7 @@ export default function EventDetailsModal({
         <div className="p-6 sm:p-8 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-widest text-indigo-500 font-semibold mb-2">
+              <p className="text-xs uppercase tracking-widest text-ocean font-semibold mb-2">
                 Event overview
               </p>
               <h2 className="text-3xl font-bold text-gray-900">
@@ -63,7 +63,7 @@ export default function EventDetailsModal({
                 </span>
               )}
               {event.rate && (
-                <span className="px-4 py-2 rounded-full bg-indigo-50 text-indigo-700 text-sm font-semibold">
+                <span className="px-4 py-2 rounded-full bg-sky text-ocean text-sm font-semibold">
                   ★ {event.rate} rating
                 </span>
               )}
@@ -74,7 +74,7 @@ export default function EventDetailsModal({
             {event.description || event.shortDescription || "More details coming soon."}
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 rounded-2xl p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-cream rounded-2xl p-4">
             {info.map(({ label, value }) => (
               <DetailRow key={label} label={label} value={value} />
             ))}
@@ -97,14 +97,14 @@ export default function EventDetailsModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="px-5 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-cream"
             >
               Close
             </button>
             <button
               type="button"
               onClick={() => onApply?.(event)}
-              className="px-6 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
+              className="px-6 py-2 rounded-lg bg-ocean text-white text-sm font-semibold hover:bg-ocean/80"
             >
               Apply to this event
             </button>

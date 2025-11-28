@@ -1,0 +1,19 @@
+:root {
+  /* ===== COLOR PALETTE =====
+     Change these values to update colors across the entire app
+  */
+  
+  /* Warm tones */
+  --color-warm-beige: #EDDCD2;
+  --color-cream: #FFF1E6;
+  --color-blush: #FDE2E4;
+  --color-rose: #FAD2E1;
+  
+  /* Cool tones */
+  --color-mint: #C5DEDD;
+  --color-sage: #DBE7E4;
+  --color-pearl: #F0EFEB;
+  --color-mist: #D6E2E9;
+  --color-sky: #BCD4E6;
+  --color-ocean: #99C1DE;
+}

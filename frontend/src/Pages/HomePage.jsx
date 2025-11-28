@@ -4,23 +4,29 @@ import Hero from "../components/Hero";
 import Features from "../components/Features";
 import AboutUs from "../components/AboutUs";
 import Footer from "../components/Footer";
-import SignIn from "../components/SignIn";
+import AuthModal from "../components/SignIn";
 
 export default function HomePage() {
-  const [showModal, setShowModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [selectedRole, setSelectedRole] = useState("host");
+
+  const handleGetStarted = (role = "host") => {
+    setSelectedRole(role);
+    setShowAuthModal(true);
+  };
 
   return (
-    <main className="bg-gray-50 min-h-screen">
-
-      <Navbar onJoinClick={() => setShowModal(true)} />
-      <Hero onJoinClick={() => setShowModal(true)} />
+    <main className="bg-pearl min-h-screen">
+      <Navbar />
+      <Hero onGetStarted={handleGetStarted} />
       <Features />
       <AboutUs />
       <Footer />
 
-      <SignIn
-        show={showModal}
-        onClose={() => setShowModal(false)}
+      <AuthModal
+        show={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        initialRole={selectedRole}
       />
     </main>
   );

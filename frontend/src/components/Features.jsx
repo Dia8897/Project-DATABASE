@@ -13,32 +13,32 @@ export default function FeaturesSection() {
         {
             title: "Everything You Need to Excel",
             description: "Our platform provides all the tools for seamless event coordination and professional development.",
-            icon: <Calendar size={40} className="text-indigo-600 mb-3" />,
+            icon: <Calendar size={40} className="text-ocean mb-3" />,
         },
         {
             title: "Event Discovery",
             description: "Browse and apply for exclusive events with detailed requirements and schedules.",
-            icon: <Users size={40} className="text-indigo-600 mb-3" />,
+            icon: <Users size={40} className="text-ocean mb-3" />,
         },
         {
             title: "Team Coordination",
             description: "Connect with other hosts, form teams, and coordinate event logistics seamlessly.",
-            icon: <Shield size={40} className="text-indigo-600 mb-3" />,
+            icon: <Shield size={40} className="text-ocean mb-3" />,
         },
         {
             title: "Professional Profile",
             description: "Build your reputation with reviews, work history, and achievement badges.",
-            icon: <SquareCheck size={40} className="text-indigo-600 mb-3" />,
+            icon: <SquareCheck size={40} className="text-ocean mb-3" />,
         },
         {
             title: "Team Leadership",
             description: "Apply as team leader and manage event logistics, badges, and documentation.",
-            icon: <BookUser size={40} className="text-indigo-600 mb-3" />,
+            icon: <BookUser size={40} className="text-ocean mb-3" />,
         },
         {
             title: "Admin Tools",
             description: "Comprehensive dashboard for managing applications, teams, and event staffing.",
-            icon: <Lock size={40} className="text-indigo-600 mb-3" />,
+            icon: <Lock size={40} className="text-ocean mb-3" />,
         },
     ];
 
@@ -52,7 +52,7 @@ export default function FeaturesSection() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
                     {features.map((feature, idx) => (
-                        <div key={idx} className="flex flex-col items-center text-center p-6 bg-indigo-50 rounded-2xl shadow-md hover:shadow-xl transition">
+                        <div key={idx} className="flex flex-col items-center text-center p-6 bg-cream rounded-2xl shadow-md hover:shadow-xl transition">
                             {feature.icon}
                             <h3 className="text-xl font-semibold text-gray-800 mb-2">{feature.title}</h3>
                             <p className="text-gray-600">{feature.description}</p>

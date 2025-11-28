@@ -224,19 +224,19 @@ export default function EventsPage() {
   }, [lastApplication]);
 
   return (
-    <main className="bg-gray-50 min-h-screen">
-      <Navbar />
+    <main className="bg-pearl min-h-screen">
+      <Navbar isLoggedIn={true} userType="host" />
 
       <div className="pt-24 space-y-12">
         <section className="px-4">
           <div className="max-w-6xl mx-auto bg-white rounded-[3rem] p-8 md:p-12 shadow-xl border border-gray-100">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
               <div className="space-y-5 lg:w-2/3">
-                <p className="text-xs uppercase tracking-[0.4em] text-indigo-500 font-semibold">
+                <p className="text-xs uppercase tracking-[0.4em] text-ocean font-semibold">
                   Staffing Radar
                 </p>
                 <h1 className="text-4xl md:text-5xl font-bold leading-tight text-gray-900">
-                  Discover this month’s curated client activations
+                  Discover this month's curated client activations
                 </h1>
                 <p className="text-base text-gray-600 max-w-2xl">
                   Luxury brand launches, corporate assemblies, immersive festivals, and accelerated training sessions—updated daily by the agency team.
@@ -245,7 +245,7 @@ export default function EventsPage() {
                   {stats.map((stat) => (
                     <div
                       key={stat.label}
-                      className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-center"
+                      className="rounded-2xl border border-gray-100 bg-pearl px-4 py-3 text-center"
                     >
                       <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
                       <p className="text-[0.7rem] uppercase tracking-wide text-gray-500 mt-1">
@@ -256,12 +256,12 @@ export default function EventsPage() {
                 </div>
               </div>
               {sortedEvents[0] && (
-                <div className="bg-indigo-50 text-gray-900 rounded-3xl p-6 w-full lg:w-auto shadow-inner border border-indigo-100 space-y-4">
+                <div className="bg-sky text-gray-900 rounded-3xl p-6 w-full lg:w-auto shadow-inner border border-sky space-y-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs uppercase tracking-[0.4em] text-indigo-600 font-semibold">
+                    <p className="text-xs uppercase tracking-[0.4em] text-ocean font-semibold">
                       Spotlight
                     </p>
-                    <span className="px-3 py-1 rounded-full bg-white text-sm font-semibold text-indigo-700">
+                    <span className="px-3 py-1 rounded-full bg-white text-sm font-semibold text-ocean">
                       {sortedEvents[0].badge}
                     </span>
                   </div>
@@ -277,13 +277,13 @@ export default function EventsPage() {
                   <div className="flex gap-3 pt-2">
                     <button
                       onClick={() => handleViewDetails(sortedEvents[0])}
-                      className="flex-1 px-4 py-2 rounded-lg bg-white text-indigo-700 text-sm font-semibold shadow border border-white hover:shadow-md"
+                      className="flex-1 px-4 py-2 rounded-lg bg-white text-ocean text-sm font-semibold shadow border border-white hover:shadow-md"
                     >
                       Details
                     </button>
                     <button
                       onClick={() => handleApply(sortedEvents[0])}
-                      className="flex-1 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
+                      className="flex-1 px-4 py-2 rounded-lg bg-ocean text-white text-sm font-semibold hover:bg-ocean/80"
                     >
                       Apply
                     </button>
@@ -297,7 +297,7 @@ export default function EventsPage() {
         <section className="px-4">
           <div className="max-w-6xl mx-auto bg-white rounded-3xl shadow p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-indigo-500 font-semibold">
+              <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">
                 Filter board
               </p>
               <h3 className="text-lg font-semibold text-gray-900">
@@ -311,8 +311,8 @@ export default function EventsPage() {
                   onClick={() => setActiveFilter(cat)}
                   className={`px-4 py-2 rounded-full text-sm font-medium transition ${
                     activeFilter === cat
-                      ? "bg-indigo-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      ? "bg-ocean text-white"
+                      : "bg-cream text-gray-700 hover:bg-mist"
                   }`}
                 >
                   {cat === "all" ? "All" : cat}
@@ -345,10 +345,10 @@ export default function EventsPage() {
                       </div>
                     )}
                     <div className="flex-1 flex flex-col gap-3">
-                      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-indigo-500 font-semibold">
+                      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-ocean font-semibold">
                         <span>{event.category}</span>
                         {event.badge && (
-                          <span className="tracking-normal px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
+                          <span className="tracking-normal px-2 py-0.5 rounded-full bg-sky text-ocean">
                             {event.badge}
                           </span>
                         )}
@@ -370,13 +370,13 @@ export default function EventsPage() {
                       <div className="flex gap-2 pt-1 mt-auto">
                         <button
                           onClick={() => handleViewDetails(event)}
-                          className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                          className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-cream"
                         >
                           Details
                         </button>
                         <button
                           onClick={() => handleApply(event)}
-                          className="flex-1 px-3 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
+                          className="flex-1 px-3 py-2 rounded-xl bg-ocean text-white text-sm font-semibold hover:bg-ocean/80"
                         >
                           Apply
                         </button>
@@ -410,7 +410,7 @@ export default function EventsPage() {
 
       {lastApplication && (
         <div className="fixed bottom-6 right-6 w-full max-w-sm bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 flex items-start gap-3 transition-opacity">
-          <div className="h-10 w-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-full bg-sky text-ocean flex items-center justify-center">
             <svg
               width="20"
               height="20"

@@ -3,7 +3,7 @@ import React from "react";
 // AboutUsSection: full-width jumbotron with background, text, and CTA style
 export default function AboutUsSection() {
     return (
-        <section className="w-full bg-gradient-to-r from-indigo-600 to-indigo-400 text-white py-32 px-6">
+        <section className="w-full bg-gradient-to-r from-ocean to-sky text-white py-32 px-6">
             <div className="max-w-5xl mx-auto text-center">
                 {/* Title */}
                 <h2 className="text-4xl md:text-5xl font-bold mb-6">
@@ -20,7 +20,7 @@ export default function AboutUsSection() {
                 </p>
 
                 {/* Optional CTA button */}
-                <button className="px-8 py-3 bg-white text-indigo-600 font-semibold rounded-lg shadow-md hover:bg-gray-100 transition">
+                <button className="px-8 py-3 bg-white text-ocean font-semibold rounded-lg shadow-md hover:bg-gray-100 transition">
                     Learn More
                 </button>
             </div>
