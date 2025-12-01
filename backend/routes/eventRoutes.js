@@ -1,37 +1,14 @@
 import { Router } from "express";
 import db from "../config/db.js";
+import { verifyToken, isAdmin, isUser } from "../middleware/auth.js";
+
 
 const router = Router();
 
-// GET /api/events - list events with accepted host counts
+// GET 
 router.get("/", async (req, res) => {
   try {
-    const [rows] = await db.query(`
-      SELECT
-        e.eventId,
-        e.title,
-        e.type,
-        e.description AS description,
-        e.location,
-        DATE(e.startsAt) AS date,
-        e.nbOfHosts,
-        COALESCE(app.acceptedHostsCount, 0) AS acceptedHostsCount,
-        e.rate,
-        NULL AS badge,             -- placeholder until you add a column
-        NULL AS category,          -- placeholder until you add a column
-        NULL AS dressCode,         -- placeholder until you add a column
-        NULL AS shortDescription,  -- placeholder until you add a column
-        NULL AS requirements,      -- placeholder until you add a column
-        NULL AS imageUrl           -- placeholder until you add a column
-      FROM EVENTS e
-      LEFT JOIN (
-        SELECT eventId, COUNT(*) AS acceptedHostsCount
-        FROM EVENT_APP
-        WHERE status = 'accepted'
-        GROUP BY eventId
-      ) app ON app.eventId = e.eventId
-      ORDER BY e.startsAt ASC;
-    `);
+    const [rows] = await db.query("SELECT * FROM EVENTS");
     res.json(rows);
   } catch (err) {
     console.error("Failed to fetch events", err);
@@ -39,22 +16,14 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/events/:id - single event details
+// GET /api/users/:id - Fetch a single user by ID
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    const [rows] = await db.query(
-      `SELECT eventId, title, type, description, location,
-              DATE(startsAt) AS date, nbOfHosts, rate
-       FROM EVENTS
-       WHERE eventId = ?`,
-      [id]
-    );
-
+    const [rows] = await db.query("SELECT * FROM EVENTS WHERE eventId = ?", [id]);
     if (!rows.length) {
       return res.status(404).json({ message: "Event not found" });
     }
-
     res.json(rows[0]);
   } catch (err) {
     console.error("Failed to fetch event", err);
@@ -62,6 +31,67 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+// POST 
+router.post("/", verifyToken, isAdmin,async (req, res) => {
+  const { title, type, description, location, startsAt, endsAt, venue,
+ nbOfHosts, floorPlan, attendeesList, rate,
+ teamLeaderId, clothesId, clientId, adminId } = req.body;
+  try {
+    const [result] = await db.query(
+      `INSERT INTO EVENTS (title, type, description, location, startsAt, endsAt, venue,
+ nbOfHosts, floorPlan, attendeesList, rate,
+ teamLeaderId, clothesId, clientId, adminId)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`,
+      [title, type, description, location, startsAt, endsAt, venue,
+ nbOfHosts, floorPlan, attendeesList, rate,
+ teamLeaderId, clothesId, clientId, adminId]
+    );
+    res.status(201).json({ eventId: result.insertId, message: "Event created" });
+  } catch (err) {
+    console.error("Failed to create event", err);
+    res.status(500).json({ message: "Failed to create event" });
+  }
+});
+
+
+router.put("/:id", verifyToken, isAdmin,async (req, res) => {
+  const { id } = req.params;
+  const { title, type, description, location, startsAt, endsAt, venue,
+ nbOfHosts, floorPlan, attendeesList, rate,
+ teamLeaderId, clothesId, clientId, adminId } = req.body;
+  try {
+    const [result] = await db.query(
+      `UPDATE EVENTS SET title=?, type=?, description=?, location=?, startsAt=?, endsAt=?, venue=?,
+ nbOfHosts=?, floorPlan=?, attendeesList=?, rate=?,
+ teamLeaderId=?, clothesId=?, clientId=?, adminId=?`,
+      [title, type, description, location, startsAt, endsAt, venue,
+ nbOfHosts, floorPlan, attendeesList, rate,
+ teamLeaderId, clothesId, clientId, adminId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+    res.json({ message: "Event updated" });
+  } catch (err) {
+    console.error("Failed to update event", err);
+    res.status(500).json({ message: "Failed to update event" });
+  }
+});
+
+
+router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await db.query("DELETE FROM EVENTS WHERE eventId = ?", [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+    res.json({ message: "Event deleted" });
+  } catch (err) {
+    console.error("Failed to delete event", err);
+    res.status(500).json({ message: "Failed to delete event" });
+  }
+});
+
 export default router;
-
-

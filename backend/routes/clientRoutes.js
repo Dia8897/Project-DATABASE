@@ -1,10 +1,12 @@
 import { Router } from "express";
 import db from "../config/db.js";
+import bcrypt from "bcryptjs";
+import { verifyToken, isAdmin, isUser, isClient } from "../middleware/auth.js";
 
 const router = Router();
 
 // GET /api/users - Fetch all users (hosts/hostesses)
-router.get("/", async (req, res) => {
+router.get("/", verifyToken, isAdmin, async (req, res) => {
   try {
     const [rows] = await db.query("SELECT * FROM CLIENTS");
     res.json(rows);
@@ -14,8 +16,8 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/users/:id - Fetch a single user by ID
-router.get("/:id", async (req, res) => {
+// GET /api/users/: - Fetch a single user by ID
+router.get("/:id", verifyToken, isAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     const [rows] = await db.query("SELECT * FROM CLIENTS WHERE clientId = ?", [id]);
@@ -29,14 +31,17 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// POST /api/users - Create a new client
+
+
 router.post("/", async (req, res) => {
   const { fName, lName, email, phoneNb, age, gender, address } = req.body;
+     const hashedPass = await bcrypt.hash(password, 10);
   try {
+ 
     const [result] = await db.query(
-      `INSERT INTO CLIENTS (fName, lName, email, phoneNb, age, gender, address)
+      `INSERT INTO CLIENTS (fName, lName, email, password, age, gender, address)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [fName, lName, email, phoneNb, age, gender, address]
+      [fName, lName, email, hashedPass, age, gender, address]
     );
     res.status(201).json({ clientId: result.insertId, message: "Client created" });
   } catch (err) {
@@ -46,7 +51,7 @@ router.post("/", async (req, res) => {
 });
 
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", verifyToken, isClient, async (req, res) => {
   const { id } = req.params;
   const { fName, lName, email, phoneNb, age, gender, address } = req.body;
   try {
@@ -66,7 +71,7 @@ router.put("/:id", async (req, res) => {
 });
 
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", verifyToken, isClient, isAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     const [result] = await db.query("DELETE FROM CLIENTS WHERE clientId = ?", [id]);

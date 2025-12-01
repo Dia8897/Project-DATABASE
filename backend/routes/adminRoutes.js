@@ -1,5 +1,6 @@
 import { Router } from "express";
 import db from "../config/db.js";
+import bcrypt from "bcryptjs";
 
 const router = Router();
 
@@ -33,12 +34,14 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   const { fName, lName, email, password, phoneNb, profilePic, age, gender,
  address, yearsOfExperience } = req.body;
+ const hashedPass = await bcrypt.hash(password, 10);
   try {
+    
     const [result] = await db.query(
       `INSERT INTO ADMINS (fName, lName, email, password, phoneNb, profilePic, age, gender,
  address, yearsOfExperience)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [fName, lName, email, password, phoneNb, profilePic, age, gender,
+      [fName, lName, email, hashedPass, phoneNb, profilePic, age, gender,
  address, yearsOfExperience]
     );
     res.status(201).json({ adminId: result.insertId, message: "Admin created" });

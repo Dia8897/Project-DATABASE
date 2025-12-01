@@ -1,5 +1,6 @@
 import { Router } from "express";
 import db from "../config/db.js";
+import bcrypt from "bcryptjs";
 
 const router = Router();
 
@@ -32,11 +33,13 @@ router.get("/:id", async (req, res) => {
 // POST /api/users - Create a new user
 router.post("/", async (req, res) => {
   const { fName, lName, email, password, phoneNb, age, gender, address, clothingSize, description } = req.body;
+  const hashedPass = await bcrypt.hash(password, 10);
   try {
+ 
     const [result] = await db.query(
       `INSERT INTO USERS (fName, lName, email, password, phoneNb, age, gender, address, clothingSize, description)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [fName, lName, email, password, phoneNb, age, gender, address, clothingSize, description]
+      [fName, lName, email, hashedPass, phoneNb, age, gender, address, clothingSize, description]
     );
     res.status(201).json({ userId: result.insertId, message: "User created" });
   } catch (err) {
