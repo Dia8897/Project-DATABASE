@@ -34,14 +34,13 @@ router.get("/:id", verifyToken, isAdmin, async (req, res) => {
 
 
 router.post("/", async (req, res) => {
-  const { fName, lName, email, phoneNb, age, gender, address } = req.body;
-     const hashedPass = await bcrypt.hash(password, 10);
+  const { fName, lName, email, phoneNb, age, gender, address, password } = req.body;  // Add password
+  const hashedPass = await bcrypt.hash(password, 10);
   try {
- 
     const [result] = await db.query(
-      `INSERT INTO CLIENTS (fName, lName, email, password, age, gender, address)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [fName, lName, email, hashedPass, age, gender, address]
+      `INSERT INTO CLIENTS (fName, lName, email, phoneNb, age, gender, address, password)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,  // Add ? for password
+      [fName, lName, email, phoneNb, age, gender, address, hashedPass]
     );
     res.status(201).json({ clientId: result.insertId, message: "Client created" });
   } catch (err) {
@@ -53,13 +52,27 @@ router.post("/", async (req, res) => {
 
 router.put("/:id", verifyToken, isClient, async (req, res) => {
   const { id } = req.params;
-  const { fName, lName, email, phoneNb, age, gender, address } = req.body;
+  const { fName, lName, email, phoneNb, age, gender, address, password } = req.body;
+  
+  let updateData = { fName, lName, email, phoneNb, age, gender, address };
+  let queryParams = [fName, lName, email, phoneNb, age, gender, address];
+  
+  // Only hash and update password if provided
+  if (password) {
+    const hashedPass = await bcrypt.hash(password, 10);
+    updateData.password = hashedPass;
+    queryParams.push(hashedPass);
+  }
+  
   try {
+    const setClause = Object.keys(updateData).map(key => `${key} = ?`).join(', ');
+    queryParams.push(id);
+    
     const [result] = await db.query(
-      `UPDATE CLIENTS SET fName = ?, lName = ?, email = ?, phoneNb = ?, age = ?, gender = ?, address = ?
-       WHERE clientId = ?`,
-      [fName, lName, email, phoneNb, age, gender, address, id]
+      `UPDATE CLIENTS SET ${setClause} WHERE clientId = ?`,
+      queryParams
     );
+    
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Client not found" });
     }
@@ -69,6 +82,7 @@ router.put("/:id", verifyToken, isClient, async (req, res) => {
     res.status(500).json({ message: "Failed to update client" });
   }
 });
+
 
 
 router.delete("/:id", verifyToken, isClient, isAdmin, async (req, res) => {
