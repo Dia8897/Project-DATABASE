@@ -43,7 +43,29 @@ app.use("/api/clients", clientRoutes);
 app.use("/api/trainings", trainingRoutes);
 app.use("/api/reviews", reviewRoutes);
 // Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 5000;
+const MAX_PORT_SEARCH = 20;
+
+const startServer = (port, attemptsLeft) => {
+  const server = app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+  });
+
+  server.on("error", (error) => {
+    if (
+      ["EADDRINUSE", "EACCES", "EPERM"].includes(error.code) &&
+      attemptsLeft > 0
+    ) {
+      const nextPort = port + 1;
+      console.warn(
+        `Port ${port} is not available (${error.code}). Trying ${nextPort}...`
+      );
+      server.close(() => startServer(nextPort, attemptsLeft - 1));
+    } else {
+      console.error("Failed to start server:", error);
+      process.exit(1);
+    }
+  });
+};
+
+startServer(DEFAULT_PORT, MAX_PORT_SEARCH);
