@@ -29,3 +29,12 @@ export const isClient = (req, res, next) => {
   if (req.user.role !== 'client') return res.status(403).json({ message: 'Client access required' });
   next();
 };
+
+export function isUserOrAdmin(req, res, next) {
+  // req.user is set by verifyToken
+  if (req.user.role === "user" || req.user.role === "admin") {
+    return next();
+  }
+  return res.status(403).json({ message: "Access denied" });
+};
+

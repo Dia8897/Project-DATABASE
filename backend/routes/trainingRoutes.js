@@ -1,12 +1,12 @@
 import { Router } from "express";
 import db from "../config/db.js";
-import { verifyToken, isAdmin, isUser } from "../middleware/auth.js";
+import { verifyToken, isAdmin, isUser, isUserOrAdmin } from "../middleware/auth.js";
 
 
 const router = Router();
 
 // GET 
-router.get("/", verifyToken, isUser, async (req, res) => {
+router.get("/", verifyToken, isUserOrAdmin, async (req, res) => {
   try {
     const [rows] = await db.query("SELECT * FROM TRAINING");
     res.json(rows);
@@ -17,7 +17,7 @@ router.get("/", verifyToken, isUser, async (req, res) => {
 });
 
 
-router.get("/:id", verifyToken,  isUser, async (req, res) => {
+router.get("/:id", verifyToken,  isUserOrAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     const [rows] = await db.query("SELECT * FROM TRAINING WHERE trainingId = ?", [id]);
@@ -50,21 +50,32 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
 
 router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   const { id } = req.params;
+
+  if (!req.body) {
+    return res.status(400).json({ message: "Request body is missing" });
+  }
+
   const { title, type, description, startTime, endTime, location, date } = req.body;
+
   try {
     const [result] = await db.query(
-      `UPDATE TRAINING SET title=?, type=?, description=?, startTime=?, endTime=?, location=?, date=? WHERE trainingId=?`,
-      [title, type, description, startTime, endTime, location, date]
+      `UPDATE TRAINING 
+       SET title=?, type=?, description=?, startTime=?, endTime=?, location=?, date=? 
+       WHERE trainingId=?`,
+      [title, type, description, startTime, endTime, location, date, id]   // ✅ use id here
     );
+
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Training not found" });
     }
+
     res.json({ message: "Training updated" });
   } catch (err) {
     console.error("Failed to update training", err);
     res.status(500).json({ message: "Failed to update training" });
   }
 });
+
 
 
 router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
