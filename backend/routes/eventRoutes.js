@@ -3,9 +3,9 @@ import db from "../config/db.js";
 import { verifyToken, isAdmin, isClient ,isUserOrAdmin} from "../middleware/auth.js";
 
 const router = Router();
-/* ---------------------- PUBLIC & ADMIN ROUTES ---------------------- */
 
-// PUBLIC: GET all approved events 
+
+//GET all approved events 
 router.get("/", isUserOrAdmin, async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -99,6 +99,21 @@ router.post("/", verifyToken, isClient, async (req, res) => {
       eventId: result.insertId,
       message: "Event request submitted (pending approval)"
     });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   } catch (err) {
     console.error("Failed to create event", err);
