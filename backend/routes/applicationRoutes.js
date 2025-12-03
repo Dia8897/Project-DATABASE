@@ -60,6 +60,15 @@ router.post("/", verifyToken, isUser, async (req, res) => {
       return res.status(400).json({ message: "Valid eventId is required" });
     }
 
+    // Check if event exists and is approved
+    const [eventCheck] = await db.query(
+      "SELECT eventId FROM EVENTS WHERE eventId = ? AND status = 'accepted'",
+      [parseInt(eventId)]
+    );
+    if (eventCheck.length === 0) {
+      return res.status(400).json({ message: "Invalid event - event not found or not approved" });
+    }
+
     // Check if user has already applied to this event
     const [existingApp] = await db.query(
       "SELECT eventAppId FROM EVENT_APP WHERE senderId = ? AND eventId = ?",
