@@ -102,19 +102,6 @@ router.post("/", verifyToken, isClient, async (req, res) => {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
   } catch (err) {
     console.error("Failed to create event", err);
     res.status(500).json({ message: "Failed to create event" });
