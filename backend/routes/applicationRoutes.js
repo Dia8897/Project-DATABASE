@@ -1,14 +1,22 @@
 import { Router } from "express";
 import db from "../config/db.js";
-import { verifyToken, isAdmin, isUser } from "../middleware/auth.js";
+import { verifyToken, isAdmin, isUser, isUserOrAdmin } from "../middleware/auth.js";
 
 
 const router = Router();
 
-// GET /api/users - Fetch all event application
-router.get("/", verifyToken,  async (req, res) => {
+
+router.get("/", verifyToken, isUserOrAdmin, async (req, res) => {
   try {
-    const [rows] = await db.query("SELECT * FROM EVENT_APP");
+    let query = "SELECT * FROM EVENT_APP";
+    let params = [];
+
+    if (req.user.role !== 'admin') {
+      query += " WHERE senderId = ?";
+      params.push(req.user.id);
+    }
+
+    const [rows] = await db.query(query, params);
     res.json(rows);
   } catch (err) {
     console.error("Failed to fetch event app", err);
@@ -16,11 +24,19 @@ router.get("/", verifyToken,  async (req, res) => {
   }
 });
 
-// GET Fetch a single EVENT_APP by ID
-router.get("/:id", verifyToken, async (req, res) => {
+router.get("/:id", verifyToken, isUserOrAdmin, async (req, res) => {
   const { id } = req.params;
   try {
-    const [rows] = await db.query("SELECT * FROM EVENT_APP WHERE eventAppId = ?", [id]);
+    let query = "SELECT * FROM EVENT_APP WHERE eventAppId = ?";
+    let params = [id];
+
+    // If not admin, ensure user can only access their own applications
+    if (req.user.role !== 'admin') {
+      query += " AND senderId = ?";
+      params.push(req.user.id);
+    }
+
+    const [rows] = await db.query(query, params);
     if (!rows.length) {
       return res.status(404).json({ message: "Event app not found" });
     }
@@ -31,18 +47,46 @@ router.get("/:id", verifyToken, async (req, res) => {
   }
 });
 
-// POST Create a new EVENT_APP
-// POST Create a new EVENT_APP
+
+// router.post("/", verifyToken, isUser, async (req, res) => {
+//   try {
+//     // Only take these fields from request body - user can't set status, senderId, etc.
+//     const { requestedRole, notes, eventId } = req.body;
+   
+
+//     const [result] = await db.query(
+//       `INSERT INTO EVENT_APP (status, requestedRole, assignedRole, notes, sentAt, decidedAt, senderId, adminId, eventId)
+//        VALUES (?, ?, ?, ?, NOW(), NULL, ?, NULL, ?)`,
+//       ['pending', requestedRole, null, notes, req.user.id, eventId]
+//     );
+
+//     res.status(201).json({
+//       eventAppId: result.insertId,
+//       message: "Event application created"
+//     });
+
+//   } catch (err) {
+//     console.error("Failed to create event application", err);
+//     res.status(500).json({ message: "Failed to create event application" });
+//   }
+// });
+
 router.post("/", verifyToken, isUser, async (req, res) => {
   try {
-    // Only take these fields from request body - user can't set status, senderId, etc.
     const { requestedRole, notes, eventId } = req.body;
-   
+
+    // Validation
+    if (!requestedRole || !requestedRole.trim()) {
+      return res.status(400).json({ message: "requestedRole is required" });
+    }
+    if (!eventId || isNaN(eventId)) {
+      return res.status(400).json({ message: "Valid eventId is required" });
+    }
 
     const [result] = await db.query(
       `INSERT INTO EVENT_APP (status, requestedRole, assignedRole, notes, sentAt, decidedAt, senderId, adminId, eventId)
        VALUES (?, ?, ?, ?, NOW(), NULL, ?, NULL, ?)`,
-      ['pending', requestedRole, null, notes, req.user.id, eventId]
+      ['pending', requestedRole.trim(), null, notes || null, req.user.id, parseInt(eventId)]
     );
 
     res.status(201).json({
@@ -52,9 +96,16 @@ router.post("/", verifyToken, isUser, async (req, res) => {
 
   } catch (err) {
     console.error("Failed to create event application", err);
+    if (err.code === 'ER_NO_REFERENCED_ROW_2') {
+      return res.status(400).json({ message: "Invalid eventId - event does not exist" });
+    }
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ message: "You have already applied for this event" });
+    }
     res.status(500).json({ message: "Failed to create event application" });
   }
 });
+
 
 
 
