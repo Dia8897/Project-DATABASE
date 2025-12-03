@@ -1,11 +1,75 @@
 import { Router } from "express";
 import db from "../config/db.js";
+import { verifyToken, isAdmin, isUserOrAdmin } from "../middleware/auth.js";
 import bcrypt from "bcryptjs";
 
 const router = Router();
 
+const validateUserPayload = (body, { requirePassword = true } = {}) => {
+  const errors = [];
+  const allowedGenders = ["M", "F", "Other"];
+  const allowedClothingSizes = ["XS", "S", "M", "L", "XL"];
+
+  const {
+    fName,
+    lName,
+    email,
+    password,
+    phoneNb,
+    age,
+    gender,
+    address,
+    clothingSize,
+    description,
+  } = body;
+
+  if (!fName || !fName.trim()) errors.push("First name is required.");
+  if (!lName || !lName.trim()) errors.push("Last name is required.");
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    errors.push("Valid email is required.");
+  if (requirePassword && (!password || password.length < 6))
+    errors.push("Password must be at least 6 characters.");
+  if (!phoneNb || !phoneNb.trim()) errors.push("Phone number is required.");
+
+  const ageValue = Number(age);
+  if (
+    Number.isNaN(ageValue) ||
+    ageValue < 18 ||
+    ageValue > 80
+  ) {
+    errors.push("Age must be between 18 and 80.");
+  }
+
+  const genderValue = gender?.trim();
+  if (!genderValue) {
+    errors.push("Gender is required.");
+  } else if (!allowedGenders.includes(genderValue)) {
+    errors.push("Gender must be M, F, or Other.");
+  }
+
+  if (!address || !address.trim()) errors.push("Address is required.");
+  const clothingValue = clothingSize?.trim();
+  if (!clothingValue) {
+    errors.push("Clothing size is required.");
+  } else if (!allowedClothingSizes.includes(clothingValue)) {
+    errors.push("Clothing size must be one of XS, S, M, L, XL.");
+  }
+  if (!description || !description.trim())
+    errors.push("Description is required.");
+
+  return errors;
+};
+
+const handleDbError = (err, res, defaultMessage) => {
+  if (err.code === "ER_DUP_ENTRY") {
+    return res.status(409).json({ message: "Email already exists." });
+  }
+  console.error(defaultMessage, err);
+  return res.status(500).json({ message: defaultMessage });
+};
+
 // GET /api/users - Fetch all users (hosts/hostesses)
-router.get("/", async (req, res) => {
+router.get("/", verifyToken, isAdmin, async (req, res) => {
   try {
     const [rows] = await db.query("SELECT * FROM USERS");
     res.json(rows);
@@ -16,10 +80,20 @@ router.get("/", async (req, res) => {
 });
 
 // GET /api/users/:id - Fetch a single user by ID
-router.get("/:id", async (req, res) => {
-  const { id } = req.params;
+router.get("/:id", verifyToken, isUserOrAdmin, async (req, res) => {
+  const requestedId = parseInt(req.params.id, 10);
+  if (Number.isNaN(requestedId)) {
+    return res.status(400).json({ message: "Invalid user id" });
+  }
+
+  if (req.user.role !== "admin" && req.user.id !== requestedId) {
+    return res.status(403).json({ message: "Access denied" });
+  }
+
   try {
-    const [rows] = await db.query("SELECT * FROM USERS WHERE userId = ?", [id]);
+    const [rows] = await db.query("SELECT * FROM USERS WHERE userId = ?", [
+      requestedId,
+    ]);
     if (!rows.length) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -32,45 +106,120 @@ router.get("/:id", async (req, res) => {
 
 // POST /api/users - Create a new user
 router.post("/", async (req, res) => {
-  const { fName, lName, email, password, phoneNb, age, gender, address, clothingSize, description } = req.body;
-  const hashedPass = await bcrypt.hash(password, 10);
+  const validationErrors = validateUserPayload(req.body);
+  if (validationErrors.length) {
+    return res.status(400).json({
+      message: "Validation failed",
+      errors: validationErrors,
+    });
+  }
+
+  const {
+    fName,
+    lName,
+    email,
+    password,
+    phoneNb,
+    age,
+    gender,
+    address,
+    clothingSize,
+    description,
+  } = req.body;
+
   try {
- 
+    const hashedPass = await bcrypt.hash(password, 10);
     const [result] = await db.query(
       `INSERT INTO USERS (fName, lName, email, password, phoneNb, age, gender, address, clothingSize, description)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [fName, lName, email, hashedPass, phoneNb, age, gender, address, clothingSize, description]
+      [
+        fName.trim(),
+        lName.trim(),
+        email.trim(),
+        hashedPass,
+        phoneNb.trim(),
+        Number(age),
+          gender.trim(),
+        address.trim(),
+        clothingSize.trim(),
+        description.trim(),
+      ]
     );
     res.status(201).json({ userId: result.insertId, message: "User created" });
   } catch (err) {
-    console.error("Failed to create user", err);
-    res.status(500).json({ message: "Failed to create user" });
+    handleDbError(err, res, "Failed to create user");
   }
 });
 
 // PUT /api/users/:id - Update a user
-router.put("/:id", async (req, res) => {
-  const { id } = req.params;
-  const { fName, lName, email, phoneNb, age, gender, address, clothingSize, description, eligibility } = req.body;
+router.put("/:id", verifyToken, isUserOrAdmin, async (req, res) => {
+  const requestedId = parseInt(req.params.id, 10);
+  if (Number.isNaN(requestedId)) {
+    return res.status(400).json({ message: "Invalid user id" });
+  }
+
+  if (req.user.role !== "admin" && req.user.id !== requestedId) {
+    return res.status(403).json({ message: "Access denied" });
+  }
+
+  const {
+    fName,
+    lName,
+    email,
+    phoneNb,
+    age,
+    gender,
+    address,
+    clothingSize,
+    description,
+    eligibility,
+  } = req.body;
+
+  const validationErrors = validateUserPayload(req.body, {
+    requirePassword: false,
+  });
+  if (validationErrors.length) {
+    return res.status(400).json({
+      message: "Validation failed",
+      errors: validationErrors,
+    });
+  }
+
   try {
     const [result] = await db.query(
       `UPDATE USERS SET fName = ?, lName = ?, email = ?, phoneNb = ?, age = ?, gender = ?, address = ?, clothingSize = ?, description = ?, eligibility = ?
        WHERE userId = ?`,
-      [fName, lName, email, phoneNb, age, gender, address, clothingSize, description, eligibility, id]
+      [
+        fName.trim(),
+        lName.trim(),
+        email.trim(),
+        phoneNb.trim(),
+        Number(age),
+        gender.trim(),
+        address.trim(),
+        clothingSize.trim(),
+        description.trim(),
+        eligibility,
+        requestedId,
+      ]
     );
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "User not found" });
     }
     res.json({ message: "User updated" });
   } catch (err) {
-    console.error("Failed to update user", err);
-    res.status(500).json({ message: "Failed to update user" });
+    handleDbError(err, res, "Failed to update user");
   }
 });
 
 // DELETE /api/users/:id - Delete a user
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
   const { id } = req.params;
+  const requestedId = parseInt(id, 10);
+  if (Number.isNaN(requestedId)) {
+    return res.status(400).json({ message: "Invalid user id" });
+  }
+
   try {
     const [result] = await db.query("DELETE FROM USERS WHERE userId = ?", [id]);
     if (result.affectedRows === 0) {
