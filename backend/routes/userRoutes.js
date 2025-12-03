@@ -162,50 +162,74 @@ router.put("/:id", verifyToken, isUserOrAdmin, async (req, res) => {
     return res.status(403).json({ message: "Access denied" });
   }
 
-  const {
-    fName,
-    lName,
-    email,
-    phoneNb,
-    age,
-    gender,
-    address,
-    clothingSize,
-    description,
-    eligibility,
-  } = req.body;
-
-  const validationErrors = validateUserPayload(req.body, {
-    requirePassword: false,
-  });
-  if (validationErrors.length) {
-    return res.status(400).json({
-      message: "Validation failed",
-      errors: validationErrors,
-    });
-  }
-
   try {
+    const [existingRows] = await db.query(
+      "SELECT * FROM USERS WHERE userId = ?",
+      [requestedId]
+    );
+    if (!existingRows.length) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const currentUser = existingRows[0];
+    const payload = {
+      fName: req.body.fName ?? currentUser.fName,
+      lName: req.body.lName ?? currentUser.lName,
+      email: req.body.email ?? currentUser.email,
+      phoneNb: req.body.phoneNb ?? currentUser.phoneNb,
+      age: req.body.age ?? currentUser.age,
+      gender: req.body.gender ?? currentUser.gender,
+      address: req.body.address ?? currentUser.address,
+      clothingSize: req.body.clothingSize ?? currentUser.clothingSize,
+      description: req.body.description ?? currentUser.description,
+    };
+
+    let updatedEligibility = currentUser.eligibility;
+    if (typeof req.body.eligibility !== "undefined") {
+      if (req.user.role !== "admin") {
+        return res
+          .status(403)
+          .json({ message: "Only admins can change eligibility." });
+      }
+      const normalizedEligibility = String(req.body.eligibility).toLowerCase();
+      const allowedEligibility = ["pending", "approved", "blocked"];
+      if (!allowedEligibility.includes(normalizedEligibility)) {
+        return res.status(400).json({
+          message: "Validation failed",
+          errors: ["Eligibility must be pending, approved, or blocked."],
+        });
+      }
+      updatedEligibility = normalizedEligibility;
+    }
+
+    const validationErrors = validateUserPayload(payload, {
+      requirePassword: false,
+    });
+    if (validationErrors.length) {
+      return res.status(400).json({
+        message: "Validation failed",
+        errors: validationErrors,
+      });
+    }
+
     const [result] = await db.query(
       `UPDATE USERS SET fName = ?, lName = ?, email = ?, phoneNb = ?, age = ?, gender = ?, address = ?, clothingSize = ?, description = ?, eligibility = ?
        WHERE userId = ?`,
       [
-        fName.trim(),
-        lName.trim(),
-        email.trim(),
-        phoneNb.trim(),
-        Number(age),
-        gender.trim(),
-        address.trim(),
-        clothingSize.trim(),
-        description.trim(),
-        eligibility,
+        payload.fName.trim(),
+        payload.lName.trim(),
+        payload.email.trim(),
+        payload.phoneNb.trim(),
+        Number(payload.age),
+        payload.gender.trim(),
+        payload.address.trim(),
+        payload.clothingSize.trim(),
+        payload.description.trim(),
+        updatedEligibility,
         requestedId,
       ]
     );
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "User not found" });
-    }
+
     res.json({ message: "User updated" });
   } catch (err) {
     handleDbError(err, res, "Failed to update user");
@@ -213,11 +237,15 @@ router.put("/:id", verifyToken, isUserOrAdmin, async (req, res) => {
 });
 
 // DELETE /api/users/:id - Delete a user
-router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
+router.delete("/:id", verifyToken, isUserOrAdmin, async (req, res) => {
   const { id } = req.params;
   const requestedId = parseInt(id, 10);
   if (Number.isNaN(requestedId)) {
     return res.status(400).json({ message: "Invalid user id" });
+  }
+
+  if (req.user.role !== "admin" && req.user.id !== requestedId) {
+    return res.status(403).json({ message: "Access denied" });
   }
 
   try {

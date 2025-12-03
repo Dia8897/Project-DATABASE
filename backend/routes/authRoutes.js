@@ -6,8 +6,30 @@ import db from "../config/db.js";
 const router = Router();
 
 router.post("/login", async (req, res) => {
-  const { email, password, role } = req.body;
-  
+  const email = req.body.email?.trim();
+  const password = req.body.password;
+  const role = req.body.role;
+  const validationErrors = [];
+
+  if (!email) {
+    validationErrors.push("Email is required.");
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    validationErrors.push("Valid email is required.");
+  }
+  if (!password) {
+    validationErrors.push("Password is required.");
+  }
+  if (!role || !["user", "admin", "client"].includes(role)) {
+    validationErrors.push("Valid role is required.");
+  }
+
+  if (validationErrors.length) {
+    return res.status(400).json({
+      message: "Validation failed",
+      errors: validationErrors,
+    });
+  }
+
   try {
     let table, idField;
     if (role === 'user') { table = 'USERS'; idField = 'userId'; }
