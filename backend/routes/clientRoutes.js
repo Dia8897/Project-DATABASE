@@ -5,6 +5,47 @@ import { verifyToken, isAdmin, isUser, isClient } from "../middleware/auth.js";
 
 const router = Router();
 
+const validateClientPayload = (body, { requirePassword = true } = {}) => {
+  const errors = [];
+  const allowedGenders = ["M", "F", "Other"];
+
+  const {
+    fName, lName, email, password, phoneNb, age, gender, address
+  } = body;
+
+  if (!fName || !fName.trim()) errors.push("First name is required.");
+  if (!lName || !lName.trim()) errors.push("Last name is required.");
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    errors.push("Valid email is required.");
+  if (requirePassword && (!password || password.length < 6))
+    errors.push("Password must be at least 6 characters.");
+  if (!phoneNb || !phoneNb.trim()) errors.push("Phone number is required.");
+
+  const ageValue = Number(age);
+  if (Number.isNaN(ageValue) || ageValue < 18 || ageValue > 80) {
+    errors.push("Age must be between 18 and 80.");
+  }
+
+  const genderValue = gender?.trim();
+  if (!genderValue) {
+    errors.push("Gender is required.");
+  } else if (!allowedGenders.includes(genderValue)) {
+    errors.push("Gender must be M, F, or Other.");
+  }
+
+  if (!address || !address.trim()) errors.push("Address is required.");
+
+  return errors;
+};
+
+const handleDbError = (err, res, defaultMessage) => {
+  if (err.code === "ER_DUP_ENTRY") {
+    return res.status(409).json({ message: "Email already exists." });
+  }
+  console.error(defaultMessage, err);
+  return res.status(500).json({ message: defaultMessage });
+};
+
 // GET /api/users - Fetch all users (hosts/hostesses)
 router.get("/", verifyToken, isAdmin, async (req, res) => {
   try {
@@ -16,11 +57,15 @@ router.get("/", verifyToken, isAdmin, async (req, res) => {
   }
 });
 
-// GET /api/users/: - Fetch a single user by ID
+// GET /api/clients/:id - Fetch a single client by ID
 router.get("/:id", verifyToken, isAdmin, async (req, res) => {
-  const { id } = req.params;
+  const requestedId = parseInt(req.params.id, 10);
+  if (Number.isNaN(requestedId)) {
+    return res.status(400).json({ message: "Invalid client id" });
+  }
+
   try {
-    const [rows] = await db.query("SELECT * FROM CLIENTS WHERE clientId = ?", [id]);
+    const [rows] = await db.query("SELECT * FROM CLIENTS WHERE clientId = ?", [requestedId]);
     if (!rows.length) {
       return res.status(404).json({ message: "Client not found" });
     }
@@ -34,68 +79,131 @@ router.get("/:id", verifyToken, isAdmin, async (req, res) => {
 
 
 router.post("/", async (req, res) => {
-  const { fName, lName, email, phoneNb, age, gender, address, password } = req.body;  // Add password
-  const hashedPass = await bcrypt.hash(password, 10);
+  const validationErrors = validateClientPayload(req.body);
+  if (validationErrors.length) {
+    return res.status(400).json({
+      message: "Validation failed",
+      errors: validationErrors,
+    });
+  }
+
+  const { fName, lName, email, phoneNb, age, gender, address, password } = req.body;
+
   try {
+    const hashedPass = await bcrypt.hash(password, 10);
     const [result] = await db.query(
       `INSERT INTO CLIENTS (fName, lName, email, phoneNb, age, gender, address, password)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,  // Add ? for password
-      [fName, lName, email, phoneNb, age, gender, address, hashedPass]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        fName.trim(),
+        lName.trim(),
+        email.trim(),
+        phoneNb.trim(),
+        Number(age),
+        gender.trim(),
+        address.trim(),
+        hashedPass
+      ]
     );
     res.status(201).json({ clientId: result.insertId, message: "Client created" });
   } catch (err) {
-    console.error("Failed to create client", err);
-    res.status(500).json({ message: "Failed to create client" });
+    handleDbError(err, res, "Failed to create client");
   }
 });
 
 
-router.put("/:id", verifyToken, isClient, async (req, res) => {
-  const { id } = req.params;
-  const { fName, lName, email, phoneNb, age, gender, address, password } = req.body;
-  
-  let updateData = { fName, lName, email, phoneNb, age, gender, address };
-  let queryParams = [fName, lName, email, phoneNb, age, gender, address];
-  
-  // Only hash and update password if provided
-  if (password) {
-    const hashedPass = await bcrypt.hash(password, 10);
-    updateData.password = hashedPass;
-    queryParams.push(hashedPass);
+router.put("/:id", verifyToken, async (req, res) => {
+  const requestedId = parseInt(req.params.id, 10);
+  if (Number.isNaN(requestedId)) {
+    return res.status(400).json({ message: "Invalid client id" });
   }
-  
+
+  // Client can only update their own info
+  if (req.user.id !== requestedId) {
+    return res.status(403).json({ message: "Access denied: can only update your own information" });
+  }
+
   try {
-    const setClause = Object.keys(updateData).map(key => `${key} = ?`).join(', ');
-    queryParams.push(id);
-    
-    const [result] = await db.query(
-      `UPDATE CLIENTS SET ${setClause} WHERE clientId = ?`,
-      queryParams
-    );
-    
-    if (result.affectedRows === 0) {
+    const [existingRows] = await db.query("SELECT * FROM CLIENTS WHERE clientId = ?", [requestedId]);
+    if (!existingRows.length) {
       return res.status(404).json({ message: "Client not found" });
     }
+
+    const currentClient = existingRows[0];
+    const payload = {
+      fName: req.body.fName ?? currentClient.fName,
+      lName: req.body.lName ?? currentClient.lName,
+      email: req.body.email ?? currentClient.email,
+      phoneNb: req.body.phoneNb ?? currentClient.phoneNb,
+      age: req.body.age ?? currentClient.age,
+      gender: req.body.gender ?? currentClient.gender,
+      address: req.body.address ?? currentClient.address,
+    };
+
+    // Handle password separately
+    let hashedPassword = currentClient.password;
+    if (req.body.password) {
+      if (req.body.password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters." });
+      }
+      hashedPassword = await bcrypt.hash(req.body.password, 10);
+    }
+
+    const validationErrors = validateClientPayload(payload, { requirePassword: false });
+    if (validationErrors.length) {
+      return res.status(400).json({
+        message: "Validation failed",
+        errors: validationErrors,
+      });
+    }
+
+    const [result] = await db.query(
+      `UPDATE CLIENTS SET fName = ?, lName = ?, email = ?, password = ?, phoneNb = ?, age = ?, gender = ?, address = ?
+       WHERE clientId = ?`,
+      [
+        payload.fName.trim(),
+        payload.lName.trim(),
+        payload.email.trim(),
+        hashedPassword,
+        payload.phoneNb.trim(),
+        Number(payload.age),
+        payload.gender.trim(),
+        payload.address.trim(),
+        requestedId,
+      ]
+    );
+
     res.json({ message: "Client updated" });
   } catch (err) {
-    console.error("Failed to update client", err);
-    res.status(500).json({ message: "Failed to update client" });
+    handleDbError(err, res, "Failed to update client");
   }
 });
 
 
 
-router.delete("/:id", verifyToken, isClient, isAdmin, async (req, res) => {
-  const { id } = req.params;
+router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
+  const requestedId = parseInt(req.params.id, 10);
+  if (Number.isNaN(requestedId)) {
+    return res.status(400).json({ message: "Invalid client id" });
+  }
+
   try {
-    const [result] = await db.query("DELETE FROM CLIENTS WHERE clientId = ?", [id]);
+    // Check if client has created any events
+    const [eventCheck] = await db.query("SELECT COUNT(*) as count FROM EVENTS WHERE clientId = ?", [requestedId]);
+    if (eventCheck[0].count > 0) {
+      return res.status(409).json({
+        message: "Cannot delete client who has created events. Delete or reassign the events first.",
+        eventsCount: eventCheck[0].count
+      });
+    }
+
+    const [result] = await db.query("DELETE FROM CLIENTS WHERE clientId = ?", [requestedId]);
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Client not found" });
     }
     res.json({ message: "Client deleted" });
   } catch (err) {
-    console.error("Failed to delete client", err);
-    res.status(500).json({ message: "Failed to delete client" });
+    handleDbError(err, res, "Failed to delete client");
   }
 });
 
