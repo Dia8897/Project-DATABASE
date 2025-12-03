@@ -1,14 +1,14 @@
 import { Router } from "express";
 import db from "../config/db.js";
-import { verifyToken, isAdmin, isUser } from "../middleware/auth.js";
+import { verifyToken, isAdmin, isUser, isClient } from "../middleware/auth.js";
 
 
 const router = Router();
 
-// GET 
+// GET - Only approved events
 router.get("/", async (req, res) => {
   try {
-    const [rows] = await db.query("SELECT * FROM EVENTS");
+    const [rows] = await db.query("SELECT * FROM EVENTS WHERE status = 'accepted'");
     res.json(rows);
   } catch (err) {
     console.error("Failed to fetch events", err);
@@ -16,11 +16,11 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/users/:id - Fetch a single user by ID
+// GET /api/events/:id - Fetch a single approved event
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    const [rows] = await db.query("SELECT * FROM EVENTS WHERE eventId = ?", [id]);
+    const [rows] = await db.query("SELECT * FROM EVENTS WHERE eventId = ? AND status = 'accepted'", [id]);
     if (!rows.length) {
       return res.status(404).json({ message: "Event not found" });
     }
@@ -31,26 +31,26 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// POST 
-router.post("/", verifyToken, isAdmin,async (req, res) => {
+// POST - Client submits event request
+router.post("/", verifyToken, isClient, async (req, res) => {
   const { title, type, description, location, startsAt, endsAt, venue,
  nbOfHosts, floorPlan, attendeesList, rate,
- teamLeaderId, clothesId, clientId, adminId } = req.body;
+ teamLeaderId, clothesId } = req.body;
   try {
     const [result] = await db.query(
       `INSERT INTO EVENTS (title, type, description, location, startsAt, endsAt, venue,
  nbOfHosts, floorPlan, attendeesList, rate,
- teamLeaderId, clothesId, clientId, adminId)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ teamLeaderId, clothesId, clientId, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
 `,
       [title, type, description, location, startsAt, endsAt, venue,
  nbOfHosts, floorPlan, attendeesList, rate,
- teamLeaderId, clothesId, clientId, adminId]
+ teamLeaderId, clothesId, req.user.id]
     );
-    res.status(201).json({ eventId: result.insertId, message: "Event created" });
+    res.status(201).json({ eventId: result.insertId, message: "Event request submitted" });
   } catch (err) {
-    console.error("Failed to create event", err);
-    res.status(500).json({ message: "Failed to create event" });
+    console.error("Failed to create event request", err);
+    res.status(500).json({ message: "Failed to create event request" });
   }
 });
 
