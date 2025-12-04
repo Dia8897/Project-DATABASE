@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import api from "../services/api";
 
 const getEmptyManualApplicant = () => ({
   firstName: "",
@@ -95,57 +96,38 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitting) return;
     if (!validate()) return;
 
     setSubmitting(true);
 
-    const applicantDetails = currentUser
-      ? {
-          userId: currentUser.userId,
-          firstName: currentUser.fName,
-          lastName: currentUser.lName,
-          email: currentUser.email,
-          phone: currentUser.phoneNb,
-          clothingSize: currentUser.clothingSize,
-          eligibility: currentUser.eligibility,
-        }
-      : {
-          firstName: manualApplicant.firstName.trim(),
-          lastName: manualApplicant.lastName.trim(),
-          email: manualApplicant.email.trim(),
-          phone: manualApplicant.phone.trim(),
-        };
+    try {
+      const response = await api.post('/applications', {
+        requestedRole,
+        notes: form.motivation.trim(),
+        eventId: event.eventId
+      });
 
-    const payload = {
-      eventId: event?.eventId,
-      eventTitle: event?.title,
-      eventDate: event?.date,
-      senderId: currentUser?.userId || null,
-      requestedRole,
-      requestDress,
-      applicant: applicantDetails,
-      profile: {
-        experience: form.experience,
-        languages: form.languages,
-        availability: form.availability,
-        motivation: form.motivation.trim(),
-      },
-    };
+      const payload = {
+        eventId: event.eventId,
+        eventTitle: event.title,
+        requestedRole,
+        applicantName: `${currentUser.fName} ${currentUser.lName}`
+      };
 
-    console.log("APPLICATION SUBMITTED (frontend only):", payload);
-
-    setTimeout(() => {
-      setSubmitting(false);
       onSubmitted?.(payload);
       setForm(buildFormFromProfile());
       setManualApplicant(getEmptyManualApplicant());
       setRequestedRole("host");
       setRequestDress(false);
       setErrors({});
-    }, 400);
+    } catch (err) {
+      alert('Application failed: ' + (err.response?.data?.message || 'Unknown error'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   useEffect(() => {

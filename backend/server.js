@@ -46,6 +46,9 @@ app.use("/api/reviews", reviewRoutes);
 const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 5000;
 const MAX_PORT_SEARCH = 20;
 
+
+
+
 const startServer = (port, attemptsLeft) => {
   const server = app.listen(port, () => {
     console.log(`Server running on http://localhost:${port}`);

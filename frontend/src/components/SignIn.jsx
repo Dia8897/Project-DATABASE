@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Mail, Lock, User, ArrowRight } from "lucide-react";
+import api from "../services/api";
 
 export default function AuthModal({ show, onClose, initialRole = "host" }) {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -22,16 +23,17 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
     { id: "admin", label: "Admin", icon: "⚙️" },
   ];
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onClose();
-
-    if (activeRole === "admin") {
-      navigate("/admin");
-    } else if (activeRole === "client") {
-      navigate("/client");
-    } else {
-      navigate("/events");
+    try {
+      const role = activeRole === "host" ? "user" : activeRole; // Map host to user
+      const response = await api.post('/auth/login', { email: formData.email, password: formData.password, role });
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      onClose();
+      navigate(activeRole === "admin" ? "/admin" : activeRole === "client" ? "/client" : "/events");
+    } catch (err) {
+      alert('Login failed: ' + (err.response?.data?.message || 'Unknown error'));
     }
   };
 

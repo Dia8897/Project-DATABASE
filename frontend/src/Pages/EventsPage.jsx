@@ -4,6 +4,7 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import ApplyModal from "../components/ApplyModal";
 import EventDetailsModal from "../components/EventDetailsModal";
+import api from "../services/api";
 
 const DEMO_EVENTS = [
   {
@@ -117,7 +118,9 @@ const DEMO_EVENTS = [
 ];
 
 export default function EventsPage() {
-  const testEvents = DEMO_EVENTS;
+  const [testEvents, setTestEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const [isApplyOpen, setIsApplyOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -126,22 +129,48 @@ export default function EventsPage() {
   const [lastApplication, setLastApplication] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all");
 
-  const loggedInUser = {
-    userId: 42,
-    fName: "Lina",
-    lName: "Saliba",
-    email: "lina.saliba@example.com",
-    phoneNb: "+961 70 123 456",
-    gender: "F",
-    age: 26,
-    address: "Beirut Downtown, Biel",
-    clothingSize: "S",
-    eligibility: "approved",
-    yearsOfExperience: 4,
-    description:
-      "VIP hostess with corporate and luxury retail experience, bilingual ENG/FR",
-    spokenLanguages: ["English", "French", "Arabic"],
-  };
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const response = await api.get('/events');
+        setTestEvents(response.data);
+      } catch (err) {
+        setError('Failed to fetch events');
+        setTestEvents(DEMO_EVENTS); // Fallback to demo
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEvents();
+  }, []);
+
+  const [loggedInUser, setLoggedInUser] = useState(null);
+
+  useEffect(() => {
+    const user = localStorage.getItem('user');
+    if (user) {
+      setLoggedInUser(JSON.parse(user));
+    } else {
+      // If not logged in, perhaps show sign in modal or redirect
+      // For now, use default
+      setLoggedInUser({
+        userId: 42,
+        fName: "Lina",
+        lName: "Saliba",
+        email: "lina.saliba@example.com",
+        phoneNb: "+961 70 123 456",
+        gender: "F",
+        age: 26,
+        address: "Beirut Downtown, Biel",
+        clothingSize: "S",
+        eligibility: "approved",
+        yearsOfExperience: 4,
+        description:
+          "VIP hostess with corporate and luxury retail experience, bilingual ENG/FR",
+        spokenLanguages: ["English", "French", "Arabic"],
+      });
+    }
+  }, []);
 
   const sortedEvents = useMemo(
     () =>
