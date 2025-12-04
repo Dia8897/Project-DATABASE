@@ -133,6 +133,7 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
     const requestedRole = currentApp[0].requestedRole;
     const eventId = currentApp[0].eventId;
     const senderId = currentApp[0].senderId;
+    const resultingStatus = typeof status !== "undefined" ? status : currentStatus;
 
     // Prevent changing status if already decided
     if (status && currentStatus !== 'pending' && status !== currentStatus) {
@@ -175,6 +176,7 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
 
     const setParts = [];
     const values = [];
+    let finalAssignedRole;
 
     if (status !== undefined) {
       setParts.push("status = ?");
@@ -216,12 +218,12 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
           });
         }
 
-        if (assignedRole === undefined) {
+        const roleToAssign = (assignedRole ?? requestedRole) ?? null;
+        if (roleToAssign !== null) {
+          const normalizedRole = roleToAssign.toLowerCase();
           setParts.push("assignedRole = ?");
-          values.push(requestedRole);
-        } else {
-          setParts.push("assignedRole = ?");
-          values.push(assignedRole);
+          values.push(normalizedRole);
+          finalAssignedRole = normalizedRole;
         }
       } else if (status === 'rejected') {
         // When rejecting, don't set assignedRole
@@ -231,8 +233,10 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
       if (currentStatus !== 'accepted') {
         return res.status(400).json({ message: "Cannot update assignedRole for applications that are not accepted" });
       }
+      const normalizedRole = assignedRole.toLowerCase();
       setParts.push("assignedRole = ?");
-      values.push(assignedRole);
+      values.push(normalizedRole);
+      finalAssignedRole = normalizedRole;
     }
 
     if (decidedAt !== undefined) {
@@ -263,6 +267,13 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
     values.push(id);
 
     const [result] = await db.query(query, values);
+
+    if (resultingStatus === 'accepted' && finalAssignedRole === 'team_leader') {
+      await db.query(
+        "UPDATE EVENTS SET teamLeaderId = ? WHERE eventId = ?",
+        [senderId, eventId]
+      );
+    }
 
     res.json({ message: "Event application updated" });
   } catch (err) {

@@ -39,17 +39,31 @@ router.get("/:reviewerId/:eventId", verifyToken, isAdmin, async (req, res) => {
 
 router.post("/",  verifyToken, isUser, async (req, res) => {
   const { eventId, starRating, content, visibility } = req.body;
+  const parsedEventId = parseInt(eventId, 10);
+
+  if (Number.isNaN(parsedEventId)) {
+    return res.status(400).json({ message: "Invalid event id" });
+  }
 
   try {
+    const [leaderCheck] = await db.query(
+      `SELECT 1 FROM EVENTS WHERE eventId = ? AND teamLeaderId = ?`,
+      [parsedEventId, req.user.id]
+    );
+
+    if (!leaderCheck.length) {
+      return res.status(403).json({ message: "Only the assigned team leader can review this event" });
+    }
+
     await db.query(
       `INSERT INTO REVIEW (reviewerId, eventId, starRating, content, visibility)
        VALUES (?, ?, ?, ?, ?)`,
-      [req.user.id, eventId, starRating, content, visibility]
+      [req.user.id, parsedEventId, starRating, content, visibility]
     );
 
     res.status(201).json({
       message: "Review created",
-      review: { reviewerId: req.user.id, eventId, starRating, content, visibility }
+      review: { reviewerId: req.user.id, eventId: parsedEventId, starRating, content, visibility }
     });
   } catch (err) {
     console.error("Failed to create review", err);
@@ -59,11 +73,11 @@ router.post("/",  verifyToken, isUser, async (req, res) => {
 
 
 router.put("/:reviewerId/:eventId",  verifyToken, isUser, async (req, res) => {
+  const { reviewerId, eventId } = req.params;
 
   if (req.user.id !== parseInt(reviewerId) && req.user.role !== 'admin') {
-  return res.status(403).json({ message: 'Access denied' });
-}
-  const { reviewerId, eventId } = req.params;
+    return res.status(403).json({ message: 'Access denied' });
+  }
   const { starRating, content, visibility } = req.body;
 
   try {
@@ -87,12 +101,11 @@ router.put("/:reviewerId/:eventId",  verifyToken, isUser, async (req, res) => {
 
 
 router.delete("/:reviewerId/:eventId", verifyToken, isUser, async (req, res) => {
+  const { reviewerId, eventId } = req.params;
 
   if (req.user.id !== parseInt(reviewerId) && req.user.role !== 'admin') {
-  return res.status(403).json({ message: 'Access denied' });
-}
-
-  const { reviewerId, eventId } = req.params;
+    return res.status(403).json({ message: 'Access denied' });
+  }
 
   try {
     const [result] = await db.query(
