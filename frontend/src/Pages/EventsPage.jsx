@@ -1,5 +1,6 @@
 // src/Pages/EventsPage.js
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import ApplyModal from "../components/ApplyModal";
@@ -118,9 +119,11 @@ const DEMO_EVENTS = [
 ];
 
 export default function EventsPage() {
+  const navigate = useNavigate();
   const [testEvents, setTestEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [role, setRole] = useState(null);
 
   const [isApplyOpen, setIsApplyOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -150,6 +153,10 @@ export default function EventsPage() {
     const user = localStorage.getItem('user');
     if (user) {
       setLoggedInUser(JSON.parse(user));
+      try {
+        const parsed = JSON.parse(user);
+        if (parsed.role) setRole(parsed.role);
+      } catch (_) {}
     } else {
       // If not logged in, perhaps show sign in modal or redirect
       // For now, use default
@@ -170,6 +177,8 @@ export default function EventsPage() {
         spokenLanguages: ["English", "French", "Arabic"],
       });
     }
+    const storedRole = localStorage.getItem("role");
+    if (storedRole) setRole(storedRole);
   }, []);
 
   const sortedEvents = useMemo(
@@ -284,39 +293,21 @@ export default function EventsPage() {
                   ))}
                 </div>
               </div>
-              {sortedEvents[0] && (
+              {(role === "user" || role === "admin") && (
                 <div className="bg-sky text-gray-900 rounded-3xl p-6 w-full lg:w-auto shadow-inner border border-sky space-y-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs uppercase tracking-[0.4em] text-ocean font-semibold">
-                      Spotlight
-                    </p>
-                    <span className="px-3 py-1 rounded-full bg-white text-sm font-semibold text-ocean">
-                      {sortedEvents[0].badge}
-                    </span>
-                  </div>
-                  <h2 className="text-2xl font-semibold">
-                    {sortedEvents[0].title}
-                  </h2>
-                  <p className="text-sm text-gray-500">
-                    {sortedEvents[0].date} • {sortedEvents[0].location}
+                  <p className="text-xs uppercase tracking-[0.4em] text-ocean font-semibold">
+                    Trainings
                   </p>
-                  <p className="text-sm text-gray-600 line-clamp-3">
-                    {sortedEvents[0].shortDescription}
+                  <h2 className="text-xl font-semibold">Grow skills & certifications</h2>
+                  <p className="text-sm text-gray-600">
+                    See upcoming sessions and schedules tailored for hosts.
                   </p>
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      onClick={() => handleViewDetails(sortedEvents[0])}
-                      className="flex-1 px-4 py-2 rounded-lg bg-white text-ocean text-sm font-semibold shadow border border-white hover:shadow-md"
-                    >
-                      Details
-                    </button>
-                    <button
-                      onClick={() => handleApply(sortedEvents[0])}
-                      className="flex-1 px-4 py-2 rounded-lg bg-ocean text-white text-sm font-semibold hover:bg-ocean/80"
-                    >
-                      Apply
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => navigate("/trainings")}
+                    className="w-full px-4 py-2 rounded-lg bg-ocean text-white text-sm font-semibold hover:bg-ocean/90 transition"
+                  >
+                    View Trainings
+                  </button>
                 </div>
               )}
             </div>
@@ -476,3 +467,4 @@ export default function EventsPage() {
     </main>
   );
 }
+

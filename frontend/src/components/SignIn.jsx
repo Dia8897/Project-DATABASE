@@ -28,8 +28,10 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
     try {
       const role = activeRole === "host" ? "user" : activeRole; // Map host to user
       const response = await api.post('/auth/login', { email: formData.email, password: formData.password, role });
+      const userWithRole = { ...response.data.user, role };
       localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('user', JSON.stringify(userWithRole));
+      localStorage.setItem('role', role);
       onClose();
       navigate(activeRole === "admin" ? "/admin" : activeRole === "client" ? "/client" : "/events");
     } catch (err) {

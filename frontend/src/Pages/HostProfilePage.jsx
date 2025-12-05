@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import ProfileHeader from "../components/profile/ProfileHeader";
@@ -11,6 +11,7 @@ import WorkedClients from "../components/profile/WorkedClients";
 
 export default function HostProfilePage() {
   const { hostId } = useParams();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("applied");
 
   const hostProfile = {
@@ -75,6 +76,24 @@ export default function HostProfilePage() {
       <div className="pt-24 space-y-8">
         <ProfileHeader profile={hostProfile} />
         <ProfileStats profile={hostProfile} eventsCount={attendedEvents.length} clientsCount={workedClients.length} />
+
+        {/* Trainings quick access */}
+        <section className="px-4">
+          <div className="max-w-6xl mx-auto">
+            <div className="bg-sky border border-ocean/10 rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">Skill Growth</p>
+                <p className="text-base font-semibold text-gray-900">View available trainings</p>
+              </div>
+              <button
+                onClick={() => navigate("/trainings")}
+                className="px-4 py-2 rounded-xl bg-ocean text-white text-sm font-semibold shadow hover:bg-ocean/90 transition"
+              >
+                View Trainings
+              </button>
+            </div>
+          </div>
+        </section>
 
         {/* Tab Navigation */}
         <section className="px-4">

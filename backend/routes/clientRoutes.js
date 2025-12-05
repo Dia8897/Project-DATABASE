@@ -77,6 +77,20 @@ router.get("/:id", verifyToken, isAdmin, async (req, res) => {
 });
 
 
+// GET /api/clients/me/events - Fetch events for the authenticated client
+router.get("/me/events", verifyToken, isClient, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      "SELECT * FROM EVENTS WHERE clientId = ? ORDER BY startsAt DESC",
+      [req.user.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("Failed to fetch client events", err);
+    res.status(500).json({ message: "Failed to fetch client events" });
+  }
+});
+
 
 router.post("/", async (req, res) => {
   const validationErrors = validateClientPayload(req.body);

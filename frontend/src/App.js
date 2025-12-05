@@ -1,10 +1,30 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import EventsPage from "./Pages/EventsPage";
 import HomePage from "./Pages/HomePage";
 import AdminPage from "./Pages/AdminPage";
 import ClientPage from "./Pages/ClientPage";
 import HostProfilePage from "./Pages/HostProfilePage";
 import TeamLeaderEventPage from "./Pages/TeamLeaderEventPage";
+import TrainingsPage from "./Pages/TrainingsPage";
+
+const RequireRole = ({ role, roles, children }) => {
+  const allowedRoles = roles || (role ? [role] : null);
+  const token = localStorage.getItem("token");
+  const storedRole =
+    localStorage.getItem("role") ||
+    (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem("user") || "{}");
+        return u.role;
+      } catch (e) {
+        return null;
+      }
+    })();
+
+  if (!token) return <Navigate to="/" replace />;
+  if (allowedRoles && !allowedRoles.includes(storedRole)) return <Navigate to="/" replace />;
+  return children;
+};
 
 function App() {
   return (
@@ -12,8 +32,30 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/events" element={<EventsPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/client" element={<ClientPage />} />
+        <Route
+          path="/admin"
+          element={
+            <RequireRole role="admin">
+              <AdminPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/client"
+          element={
+            <RequireRole role="client">
+              <ClientPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/trainings"
+          element={
+            <RequireRole roles={["user", "admin"]}>
+              <TrainingsPage />
+            </RequireRole>
+          }
+        />
         <Route path="/profile" element={<HostProfilePage />} />
         <Route path="/profile/:hostId" element={<HostProfilePage />} />
         <Route path="/team-leader/event/:eventId" element={<TeamLeaderEventPage />} />
