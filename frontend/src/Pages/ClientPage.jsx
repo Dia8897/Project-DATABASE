@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import ClientEventList from "../components/ClientEventList";
 import ClientEventRequest from "../components/ClientEventRequest";
+import api from "../services/api";
 
 import wedding from "../pics/wedding.png";
 import birthday from "../pics/birthday.png";
@@ -13,32 +14,64 @@ import corporate from "../pics/corporateDinner.png";
 
 export default function ClientPage() {
   const [eventType, setEventType] = useState("Wedding");
-  const [eventDate, setEventDate] = useState(null);
+  const [startDateTime, setStartDateTime] = useState(null);
+  const [endDateTime, setEndDateTime] = useState(null);
+  const [description, setDescription] = useState("");
+  const [location, setLocation] = useState("");
   const [guests, setGuests] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const [events, setEvents] = useState([
-    {
-      id: 1,
-      type: "Wedding",
-      date: "2026-06-10",
-      guests: 150,
-      status: "Pending review",
-    },
-    {
-      id: 2,
-      type: "Birthday Party",
-      date: "2026-03-02",
-      guests: 40,
-      status: "Confirmed",
-    },
-    {
-      id: 3,
-      type: "Corporate Gala",
-      date: "2026-09-15",
-      guests: 200,
-      status: "Under discussion",
-    },
-  ]);
+  const toMySqlDateTime = (dateObj) => {
+    if (!dateObj) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    const year = dateObj.getFullYear();
+    const month = pad(dateObj.getMonth() + 1);
+    const day = pad(dateObj.getDate());
+    const hours = pad(dateObj.getHours());
+    const minutes = pad(dateObj.getMinutes());
+    const seconds = pad(dateObj.getSeconds());
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return dateString;
+    return date.toISOString().split("T")[0];
+  };
+
+  useEffect(() => {
+    let active = true;
+    const loadEvents = async () => {
+      setLoading(true);
+      try {
+        const res = await api.get("/clients/me/events");
+        if (!active) return;
+        const normalized = res.data.map((ev) => ({
+          id: ev.eventId,
+          type: ev.type,
+          date: formatDate(ev.startsAt),
+          guests: ev.nbOfHosts ?? ev.guests ?? "",
+          status: ev.status || "pending",
+          location: ev.location,
+        }));
+        setEvents(normalized);
+      } catch (err) {
+        if (!active) return;
+        const message = err?.response?.data?.message || err.message || "Failed to load events";
+        setError(message);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    loadEvents();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const occasions = [
     { id: "Wedding", label: "Wedding", icon: wedding },
@@ -49,35 +82,56 @@ export default function ClientPage() {
     { id: "Corporate dinner", label: "Corporate dinner", icon: corporate },
   ];
 
-  const handleCreateRequest = (e) => {
+  const handleCreateRequest = async (e) => {
     e.preventDefault();
 
-    if (!eventDate || !guests) {
-      alert("Please select an event date and number of guests.");
+    if (!startDateTime || !endDateTime || !guests || !description.trim() || !location.trim()) {
+      setError("Please provide start/end, guests, description, and location.");
       return;
     }
 
-    const formattedDate = eventDate.toISOString().split("T")[0];
+    setError("");
+    setSubmitting(true);
 
-    const newEvent = {
-      id: Date.now(),
+    const payload = {
       type: eventType,
-      date: formattedDate,
-      guests: Number(guests),
-      status: "Pending review",
+      description: description.trim(),
+      location: location.trim(),
+      startsAt: toMySqlDateTime(startDateTime),
+      endsAt: toMySqlDateTime(endDateTime),
+      nbOfHosts: Number(guests),
     };
 
-    setEvents((prev) => [...prev, newEvent]);
+    try {
+      const response = await api.post("/events", payload);
+      const newEvent = {
+        id: response.data.eventId || Date.now(),
+        type: eventType,
+        date: formatDate(payload.startsAt),
+        guests: Number(guests),
+        status: "pending",
+        location: payload.location,
+      };
 
-    setEventDate(null);
-    setGuests("");
+      setEvents((prev) => [...prev, newEvent]);
+      setStartDateTime(null);
+      setEndDateTime(null);
+      setDescription("");
+      setLocation("");
+      setGuests("");
+    } catch (err) {
+      const message = err?.response?.data?.message || err.message || "Failed to submit request";
+      setError(message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const stats = [
     { label: "Total Requests", value: events.length },
-    { label: "Confirmed", value: events.filter(e => e.status === "Confirmed").length },
-    { label: "Pending", value: events.filter(e => e.status === "Pending review").length },
-    { label: "In Discussion", value: events.filter(e => e.status === "Under discussion").length },
+    { label: "Accepted", value: events.filter(e => e.status === "accepted" || e.status === "Confirmed").length },
+    { label: "Pending", value: events.filter(e => e.status === "pending" || e.status === "Pending review").length },
+    { label: "Rejected/Other", value: events.filter(e => e.status === "rejected" || e.status === "Under discussion").length },
   ];
 
   return (
@@ -144,12 +198,20 @@ export default function ClientPage() {
             <ClientEventRequest
               occasions={occasions}
               eventType={eventType}
-              eventDate={eventDate}
+              startDateTime={startDateTime}
+              endDateTime={endDateTime}
               guests={guests}
+              location={location}
+              description={description}
               onTypeChange={setEventType}
-              onDateChange={setEventDate}
+              onStartChange={setStartDateTime}
+              onEndChange={setEndDateTime}
               onGuestsChange={setGuests}
+              onLocationChange={setLocation}
+              onDescriptionChange={setDescription}
               onSubmit={handleCreateRequest}
+              submitting={submitting}
+              errorMessage={error}
             />
           </div>
         </section>

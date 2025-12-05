@@ -2,6 +2,19 @@ import React from "react";
 
 export default function ClientEventList({ events }) {
   const getStatusStyles = (status) => {
+    const normalized = String(status || "").toLowerCase();
+    if (normalized === "accepted" || normalized === "confirmed") {
+      return "bg-green-100 text-green-700 border-green-200";
+    }
+    if (normalized === "pending") {
+      return "bg-yellow-100 text-yellow-700 border-yellow-200";
+    }
+    if (normalized === "under discussion") {
+      return "bg-blue-100 text-blue-700 border-blue-200";
+    }
+    if (normalized === "rejected") {
+      return "bg-red-100 text-red-700 border-red-200";
+    }
     switch (status) {
       case "Confirmed":
         return "bg-green-100 text-green-700 border-green-200";
@@ -15,6 +28,28 @@ export default function ClientEventList({ events }) {
   };
 
   const getStatusIcon = (status) => {
+    const normalized = String(status || "").toLowerCase();
+    if (normalized === "accepted" || normalized === "confirmed") {
+      return (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+      );
+    }
+    if (normalized === "pending") {
+      return (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      );
+    }
+    if (normalized === "rejected") {
+      return (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      );
+    }
     switch (status) {
       case "Confirmed":
         return (
