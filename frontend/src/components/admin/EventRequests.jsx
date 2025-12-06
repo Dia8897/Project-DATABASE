@@ -1,180 +1,104 @@
-import React, { useState, useMemo } from "react";
-import { CheckCircle, XCircle, Calendar, MapPin, Users, Clock } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { CheckCircle, XCircle, Calendar, MapPin, Users, Clock, User, Mail, Phone, Eye, ChevronDown } from "lucide-react";
+import { adminAPI } from "../../services/api";
 
 export default function EventRequests() {
   const [activeFilter, setActiveFilter] = useState("all");
+  const [eventRequests, setEventRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [eventApplications, setEventApplications] = useState([]);
+  const [modalLoading, setModalLoading] = useState(false);
 
-  // Sample event requests data
-  const eventRequests = [
-    {
-      requestId: 1,
-      title: "Luxury Wedding Reception",
-      type: "Wedding",
-      category: "Luxury",
-      clientName: "Sarah & Michael Thompson",
-      clientEmail: "sarah.thompson@email.com",
-      clientPhone: "+961 71 234 567",
-      date: "2026-05-20",
-      location: "Le Royal Hotel, Beirut",
-      nbOfHosts: 12,
-      dressCode: "Black Tie",
-      description: "Elegant outdoor wedding reception with 200 guests. Need professional hosts for guest coordination, cocktail service, and event flow management.",
-      budget: "$15,000",
-      status: "Pending",
-      submittedDate: "2025-11-20",
-    },
-    {
-      requestId: 2,
-      title: "Corporate Product Launch",
-      type: "Corporate Event",
-      category: "Corporate",
-      clientName: "TechCorp Lebanon",
-      clientEmail: "events@techcorp.lb",
-      clientPhone: "+961 3 456 789",
-      date: "2026-02-15",
-      location: "BIEL Convention Center",
-      nbOfHosts: 20,
-      dressCode: "Business Casual",
-      description: "Tech company launching new product with demo stations, VIP area, and media coverage. Need hosts for registration, demo assistance, and crowd management.",
-      budget: "$25,000",
-      status: "Pending",
-      submittedDate: "2025-11-22",
-    },
-    {
-      requestId: 3,
-      title: "Charity Gala Dinner",
-      type: "Gala",
-      category: "Luxury",
-      clientName: "Hope Foundation",
-      clientEmail: "contact@hopefoundation.org",
-      clientPhone: "+961 70 987 654",
-      date: "2026-03-10",
-      location: "Four Seasons Hotel",
-      nbOfHosts: 15,
-      dressCode: "Formal Evening Wear",
-      description: "Annual charity gala with auction, entertainment, and VIP guests. Hosts needed for guest welcome, auction management, and table service.",
-      budget: "$18,000",
-      status: "Pending",
-      submittedDate: "2025-11-23",
-    },
-    {
-      requestId: 4,
-      title: "Birthday Party Celebration",
-      type: "Birthday",
-      category: "Personal",
-      clientName: "Nadia Khouri",
-      clientEmail: "nadia.khouri@email.com",
-      clientPhone: "+961 76 543 210",
-      date: "2026-01-30",
-      location: "Private Villa, Jounieh",
-      nbOfHosts: 6,
-      dressCode: "Smart Casual",
-      description: "50th birthday party with 80 guests. Need hosts for guest coordination, food service, and entertainment support.",
-      budget: "$8,000",
-      status: "Approved",
-      submittedDate: "2025-11-15",
-    },
-    {
-      requestId: 5,
-      title: "Music Festival",
-      type: "Festival",
-      category: "Outdoor",
-      clientName: "Beirut Events Co.",
-      clientEmail: "info@beirutevents.com",
-      clientPhone: "+961 3 111 222",
-      date: "2026-04-05",
-      location: "Beirut Waterfront",
-      nbOfHosts: 30,
-      dressCode: "Casual/Branded T-shirts",
-      description: "Two-day music festival with multiple stages. Need hosts for entry management, VIP area, artist liaison, and crowd control.",
-      budget: "$40,000",
-      status: "Pending",
-      submittedDate: "2025-11-24",
-    },
-    {
-      requestId: 6,
-      title: "Fashion Show",
-      type: "Fashion Event",
-      category: "Luxury",
-      clientName: "Elite Fashion House",
-      clientEmail: "booking@elitefashion.lb",
-      clientPhone: "+961 1 999 888",
-      date: "2026-03-25",
-      location: "ABC Mall - Upper Level",
-      nbOfHosts: 18,
-      dressCode: "All Black Chic",
-      description: "Spring collection runway show with backstage coordination, front row seating, and after-party management.",
-      budget: "$22,000",
-      status: "Rejected",
-      submittedDate: "2025-11-18",
-    },
-    {
-      requestId: 7,
-      title: "Corporate Team Building",
-      type: "Corporate Event",
-      category: "Corporate",
-      clientName: "Global Solutions Inc.",
-      clientEmail: "hr@globalsolutions.com",
-      clientPhone: "+961 70 444 555",
-      date: "2026-02-28",
-      location: "Faraya Mountain Resort",
-      nbOfHosts: 10,
-      dressCode: "Outdoor Casual",
-      description: "Full-day team building activities for 150 employees. Hosts needed for activity coordination, registration, and logistics support.",
-      budget: "$12,000",
-      status: "Pending",
-      submittedDate: "2025-11-25",
-    },
-    {
-      requestId: 8,
-      title: "Art Gallery Opening",
-      type: "Cultural Event",
-      category: "Luxury",
-      clientName: "Beirut Contemporary Art Gallery",
-      clientEmail: "info@bcag.lb",
-      clientPhone: "+961 1 777 666",
-      date: "2026-02-08",
-      location: "Gemmayzeh Art District",
-      nbOfHosts: 8,
-      dressCode: "Smart Casual/Artistic",
-      description: "Exclusive art exhibition opening with collectors and media. Need hosts for guest welcome, artwork information, and champagne service.",
-      budget: "$9,000",
-      status: "Approved",
-      submittedDate: "2025-11-17",
-    },
-  ];
+  useEffect(() => {
+    fetchEventRequests();
+  }, []);
 
-  const categories = useMemo(() => {
-    const unique = Array.from(
-      new Set(eventRequests.map((req) => req.category).filter(Boolean))
-    );
-    return ["all", ...unique];
-  }, [eventRequests]);
+  const fetchEventRequests = async () => {
+    try {
+      const response = await adminAPI.getEventRequests();
+      setEventRequests(response.data);
+    } catch (error) {
+      console.error("Failed to fetch event requests:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApprove = async (requestId) => {
+    try {
+      await adminAPI.approveEventRequest(requestId);
+      // Update local state or refetch
+      setEventRequests(prev => prev.filter(req => req.eventId !== requestId));
+    } catch (error) {
+      console.error("Failed to approve event:", error);
+    }
+  };
+
+  const handleReject = async (requestId) => {
+    try {
+      await adminAPI.rejectEventRequest(requestId);
+      // Update local state or refetch
+      setEventRequests(prev => prev.filter(req => req.eventId !== requestId));
+    } catch (error) {
+      console.error("Failed to reject event:", error);
+    }
+  };
+
+  const handleEventClick = async (event) => {
+    setSelectedEvent(event);
+    setModalLoading(true);
+    setShowModal(true);
+    try {
+      const response = await adminAPI.getApplicationsForEvent(event.eventId);
+      setEventApplications(response.data);
+    } catch (error) {
+      console.error("Failed to fetch applications for event:", error);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleApproveApplication = async (applicationId, assignedRole) => {
+    try {
+      await adminAPI.approveHostApplication(applicationId, assignedRole);
+      setEventApplications(prev => prev.map(app =>
+        app.eventAppId === applicationId ? { ...app, status: 'accepted', assignedRole } : app
+      ));
+    } catch (error) {
+      console.error("Failed to approve application:", error);
+    }
+  };
+
+  const handleRejectApplication = async (applicationId) => {
+    try {
+      await adminAPI.rejectHostApplication(applicationId);
+      setEventApplications(prev => prev.map(app =>
+        app.eventAppId === applicationId ? { ...app, status: 'rejected' } : app
+      ));
+    } catch (error) {
+      console.error("Failed to reject application:", error);
+    }
+  };
+
+  const statusFilters = ["all", "pending", "accepted", "rejected"];
 
   const filteredRequests = useMemo(() => {
     if (activeFilter === "all") return eventRequests;
-    return eventRequests.filter((req) => req.category === activeFilter);
+    return eventRequests.filter((req) => req.status === activeFilter);
   }, [activeFilter, eventRequests]);
 
-  const pendingRequests = eventRequests.filter(req => req.status === "Pending");
+  const pendingRequests = eventRequests.filter(req => req.status === "pending");
 
-  const handleApprove = (requestId) => {
-    console.log(`Approved request: ${requestId}`);
-    // In production: API call to approve event request
-  };
-
-  const handleReject = (requestId) => {
-    console.log(`Rejected request: ${requestId}`);
-    // In production: API call to reject event request
-  };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case "Pending":
+      case "pending":
         return "text-yellow-600 bg-yellow-50 border-yellow-200";
-      case "Approved":
+      case "accepted":
         return "text-green-600 bg-green-50 border-green-200";
-      case "Rejected":
+      case "rejected":
         return "text-red-600 bg-red-50 border-red-200";
       default:
         return "text-gray-600 bg-gray-50 border-gray-200";
@@ -195,17 +119,17 @@ export default function EventRequests() {
             </h3>
           </div>
           <div className="flex flex-wrap gap-2">
-            {categories.map((cat) => (
+            {statusFilters.map((filter) => (
               <button
-                key={cat}
-                onClick={() => setActiveFilter(cat)}
+                key={filter}
+                onClick={() => setActiveFilter(filter)}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition ${
-                  activeFilter === cat
+                  activeFilter === filter
                     ? "bg-ocean text-white"
                     : "bg-cream text-gray-700 hover:bg-mist"
                 }`}
               >
-                {cat === "all" ? "All Requests" : cat}
+                {filter === "all" ? "All Events" : filter}
               </button>
             ))}
           </div>
@@ -223,8 +147,9 @@ export default function EventRequests() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {filteredRequests.map((request) => (
                 <article
-                  key={request.requestId}
-                  className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition p-6 space-y-4"
+                  key={request.eventId}
+                  onClick={() => request.status === 'accepted' && handleEventClick(request)}
+                  className={`bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition p-6 space-y-4 ${request.status === 'accepted' ? 'cursor-pointer' : ''}`}
                 >
                   {/* Header */}
                   <div className="flex items-start justify-between gap-3">
@@ -249,7 +174,7 @@ export default function EventRequests() {
                   {/* Client Info */}
                   <div className="bg-cream rounded-xl p-4 space-y-2">
                     <p className="text-sm font-semibold text-gray-700">
-                      Client: {request.clientName}
+                      Client: {request.clientFName} {request.clientLName}
                     </p>
                     <p className="text-sm text-gray-600">{request.clientEmail}</p>
                     <p className="text-sm text-gray-600">{request.clientPhone}</p>
@@ -271,7 +196,7 @@ export default function EventRequests() {
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-700">
                       <Clock size={16} className="text-ocean" />
-                      <span>Submitted: {request.submittedDate}</span>
+                      <span>Event ID: {request.eventId}</span>
                     </div>
                   </div>
 
@@ -284,26 +209,42 @@ export default function EventRequests() {
                   <div className="flex items-center justify-between text-xs uppercase tracking-wide text-gray-500 pt-2 border-t border-gray-100">
                     <span>Dress: {request.dressCode}</span>
                     <span className="font-semibold text-ocean">
-                      Budget: {request.budget}
+                      Budget: ${request.budget}
                     </span>
                   </div>
 
                   {/* Action Buttons */}
-                  {request.status === "Pending" && (
+                  {request.status === "pending" && (
                     <div className="flex gap-3 pt-3">
                       <button
-                        onClick={() => handleApprove(request.requestId)}
+                        onClick={() => handleApprove(request.eventId)}
                         className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition"
                       >
                         <CheckCircle size={18} />
                         Approve
                       </button>
                       <button
-                        onClick={() => handleReject(request.requestId)}
+                        onClick={() => handleReject(request.eventId)}
                         className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition"
                       >
                         <XCircle size={18} />
                         Reject
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Manage Applications Button */}
+                  {request.status === "accepted" && (
+                    <div className="pt-3">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEventClick(request);
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-ocean text-white text-sm font-semibold hover:bg-blue-700 transition"
+                      >
+                        <Eye size={18} />
+                        Manage Applications
                       </button>
                     </div>
                   )}
@@ -313,6 +254,202 @@ export default function EventRequests() {
           )}
         </div>
       </section>
+
+      {/* Modal for Event Applications */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Applications for {selectedEvent?.title}
+                  </h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {selectedEvent?.eventDate} • {selectedEvent?.location}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XCircle size={24} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 max-h-[calc(90vh-120px)] overflow-y-auto">
+              {modalLoading ? (
+                <div className="text-center py-8">Loading applications...</div>
+              ) : eventApplications.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No applications found for this event.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {eventApplications.map((application) => {
+                    const status = application.status;
+
+                    return (
+                      <article
+                        key={application.eventAppId}
+                        className="bg-gray-50 rounded-2xl border border-gray-100 p-4 space-y-3"
+                      >
+                        {/* Header */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-sky text-ocean flex items-center justify-center">
+                              <User size={20} />
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-gray-900">
+                                {application.fName} {application.lName}
+                              </h3>
+                              <p className="text-sm text-gray-600">
+                                Applied for: {application.requestedRole}
+                                {application.assignedRole && application.assignedRole !== application.requestedRole && (
+                                  <span className="ml-2 text-green-600 font-medium">
+                                    (Assigned: {application.assignedRole})
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(status)}`}
+                          >
+                            {status}
+                          </span>
+                        </div>
+
+                        {/* Contact Info */}
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <Mail size={14} className="text-ocean" />
+                            <span className="truncate">{application.email}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <Phone size={14} className="text-ocean" />
+                            <span>{application.phoneNb}</span>
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        {application.description && (
+                          <p className="text-sm text-gray-600">
+                            {application.description}
+                          </p>
+                        )}
+
+                        {/* Notes */}
+                        {application.notes && (
+                          <div className="bg-white rounded-lg p-3">
+                            <p className="text-sm text-gray-700">
+                              <span className="font-medium">Notes:</span> {application.notes}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Applied Date */}
+                        <p className="text-xs text-gray-500">
+                          Applied: {new Date(application.sentAt).toLocaleDateString()}
+                        </p>
+
+                        {/* Action Buttons */}
+                        {status === "pending" && (
+                          <div className="flex gap-3 pt-2">
+                            <AcceptWithRoleButton
+                              application={application}
+                              onAccept={handleApproveApplication}
+                            />
+                            <button
+                              onClick={() => handleRejectApplication(application.eventAppId)}
+                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition"
+                            >
+                              <XCircle size={16} />
+                              Reject
+                            </button>
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+// Component for Accept button with role selection
+function AcceptWithRoleButton({ application, onAccept }) {
+  const [showModal, setShowModal] = useState(false);
+  const [selectedRole, setSelectedRole] = useState(application.requestedRole);
+
+  const roles = ['host', 'team_leader'];
+
+  const handleAccept = () => {
+    // Call the onAccept function with the application ID and selected role
+    onAccept(application.eventAppId, selectedRole);
+    setShowModal(false);
+  };
+
+  return (
+    <>
+      <div className="flex-1">
+        <button
+          onClick={() => setShowModal(true)}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition"
+        >
+          <CheckCircle size={16} />
+          Accept
+        </button>
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-sm w-full p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">
+              Assign Role for {application.fName} {application.lName}
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Role:
+                </label>
+                <select
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  {roles.map((role) => (
+                    <option key={role} value={role}>
+                      {role.replace('_', ' ').toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-400 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAccept}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition"
+                >
+                  Accept Application
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -1,12 +1,31 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { adminAPI } from "../../services/api";
 
 export default function AdminStats() {
-  // Sample statistics data
-  const stats = [
-    { label: "Pending Requests", value: "8", color: "text-rose" },
-    { label: "Total Applications", value: "24", color: "text-ocean" },
-    { label: "Approved Events", value: "15", color: "text-mint" },
-    { label: "Active Hosts", value: "42", color: "text-sky" },
+  const [stats, setStats] = useState({
+    pendingRequests: 0,
+    totalApplications: 0,
+    approvedEvents: 0,
+    activeHosts: 0,
+  });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await adminAPI.getStats();
+        setStats(response.data);
+      } catch (error) {
+        console.error("Failed to fetch stats:", error);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  const statsDisplay = [
+    { label: "Pending Requests", value: stats.pendingRequests, color: "text-rose" },
+    { label: "Total Applications", value: stats.totalApplications, color: "text-ocean" },
+    { label: "Approved Events", value: stats.approvedEvents, color: "text-mint" },
+    { label: "Active Hosts", value: stats.activeHosts, color: "text-sky" },
   ];
 
   return (
@@ -26,7 +45,7 @@ export default function AdminStats() {
           </div>
           
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4">
-            {stats.map((stat) => (
+            {statsDisplay.map((stat) => (
               <div
                 key={stat.label}
                 className="rounded-2xl border border-gray-100 bg-cream px-4 py-5 text-center hover:shadow-md transition"

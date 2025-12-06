@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -8,29 +8,47 @@ import AppliedEvents from "../components/profile/AppliedEvents";
 import AttendedEvents from "../components/profile/AttendedEvents";
 import Trainings from "../components/profile/Trainings";
 import WorkedClients from "../components/profile/WorkedClients";
+import { userAPI } from "../services/api";
 
 export default function HostProfilePage() {
   const { hostId } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("applied");
+  const [hostProfile, setHostProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const hostProfile = {
-    userId: hostId || 42,
-    fName: "Lina",
-    lName: "Saliba",
-    email: "lina.saliba@example.com",
-    phoneNb: "+961 70 123 456",
-    gender: "F",
-    age: 26,
-    address: "Beirut Downtown, Biel",
-    clothingSize: "S",
-    eligibility: "approved",
-    yearsOfExperience: 4,
-    rating: 4.8,
-    totalEvents: 28,
-    description: "VIP hostess with corporate and luxury retail experience, bilingual ENG/FR",
-    spokenLanguages: ["English", "French", "Arabic"],
-    profileImage: null,
+  useEffect(() => {
+    fetchHostProfile();
+  }, [hostId]);
+
+  const fetchHostProfile = async () => {
+    try {
+      const userId = hostId || 1;
+      console.log("Fetching user profile for ID:", userId);
+      const response = await userAPI.getUser(userId);
+
+      console.log("API Response:", response);
+      console.log("Response data:", response.data);
+
+      // Transform the data to match the expected format
+      const profile = {
+        ...response.data,
+        userId: response.data.userId,
+        rating: 4.8, // This would need to be calculated from reviews
+        totalEvents: 0, // This would need to be calculated
+        spokenLanguages: ["English", "French", "Arabic"], // This might need to be added to the database
+        profileImage: response.data.profilePic || null,
+      };
+      console.log("Transformed profile:", profile);
+      setHostProfile(profile);
+    } catch (error) {
+      console.error("Failed to fetch host profile:", error);
+      console.error("Error response:", error.response);
+      setError("Failed to load profile. Please check your authentication and try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const appliedEvents = [
@@ -68,6 +86,52 @@ export default function HostProfilePage() {
     { id: "trainings", label: "Trainings", count: trainings.length },
     { id: "clients", label: "Clients", count: workedClients.length },
   ];
+
+  if (loading) {
+    return (
+      <main className="bg-pearl min-h-screen">
+        <Navbar isLoggedIn={true} userType="host" />
+        <div className="pt-24 flex items-center justify-center min-h-[50vh]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ocean mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading profile...</p>
+          </div>
+        </div>
+        <Footer />
+      </main>
+    );
+  }
+
+  if (error || !hostProfile) {
+    return (
+      <main className="bg-pearl min-h-screen">
+        <Navbar isLoggedIn={true} userType="host" />
+        <div className="pt-24 flex items-center justify-center min-h-[50vh]">
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Failed to Load Profile</h2>
+            <p className="text-gray-600 mb-4">{error || "Profile not found"}</p>
+            <button
+              onClick={() => {
+                setError(null);
+                setHostProfile(null);
+                setLoading(true);
+                fetchHostProfile();
+              }}
+              className="px-4 py-2 bg-ocean text-white rounded-lg hover:bg-ocean/90 transition"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+        <Footer />
+      </main>
+    );
+  }
 
   return (
     <main className="bg-pearl min-h-screen">
