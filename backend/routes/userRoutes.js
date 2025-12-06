@@ -69,15 +69,34 @@ const handleDbError = (err, res, defaultMessage) => {
 };
 
 // GET /api/users - Fetch all users (hosts/hostesses)
+// router.get("/", verifyToken, isAdmin, async (req, res) => {
+//   try {
+//     const [rows] = await db.query("SELECT * FROM USERS");
+//     res.json(rows);
+//   } catch (err) {
+//     console.error("Failed to fetch users", err);
+//     res.status(500).json({ message: "Failed to fetch users" });
+//   }
+// });
+
 router.get("/", verifyToken, isAdmin, async (req, res) => {
   try {
-    const [rows] = await db.query("SELECT * FROM USERS");
+    let query = "SELECT * FROM USERS";
+    let params = [];
+
+    if (req.query.eligibility) {
+      query += " WHERE eligibility = ?";
+      params.push(req.query.eligibility);
+    }
+
+    const [rows] = await db.query(query, params);
     res.json(rows);
   } catch (err) {
     console.error("Failed to fetch users", err);
     res.status(500).json({ message: "Failed to fetch users" });
   }
 });
+
 
 // GET /api/users/:id - Fetch a single user by ID
 router.get("/:id", verifyToken, isUserOrAdmin, async (req, res) => {

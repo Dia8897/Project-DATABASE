@@ -6,10 +6,20 @@ import { verifyToken, isAdmin } from "../middleware/auth.js";
 
 const router = Router();
 
-// GET pending event requests (must be before /:id to avoid route conflict)
+// GET all event requests with client information
 router.get("/event-requests", verifyToken, isAdmin, async (req, res) => {
   try {
-    const [rows] = await db.query("SELECT * FROM EVENTS WHERE status = 'pending'");
+    const [rows] = await db.query(`
+      SELECT e.*,
+             COALESCE(c.fName, u.fName) as clientFName,
+             COALESCE(c.lName, u.lName) as clientLName,
+             COALESCE(c.email, u.email) as clientEmail,
+             COALESCE(c.phoneNb, u.phoneNb) as clientPhone
+      FROM EVENTS e
+      LEFT JOIN CLIENTS c ON e.clientId = c.clientId
+      LEFT JOIN USERS u ON e.clientId = u.userId
+      ORDER BY e.eventId DESC
+    `);
     res.json(rows);
   } catch (err) {
     console.error("Failed to fetch event requests", err);
@@ -272,16 +282,7 @@ const handleDbError = (err, res, defaultMessage) => {
   return res.status(500).json({ message: defaultMessage });
 };
 
-// GET pending event requests
-router.get("/event-requests", verifyToken, isAdmin, async (req, res) => {
-  try {
-    const [rows] = await db.query("SELECT * FROM EVENTS WHERE status = 'pending'");
-    res.json(rows);
-  } catch (err) {
-    console.error("Failed to fetch event requests", err);
-    res.status(500).json({ message: "Failed to fetch event requests" });
-  }
-});
+
 
 // Approve event request
 router.put("/event-requests/:id/approve", verifyToken, isAdmin, async (req, res) => {
@@ -318,5 +319,82 @@ router.put("/event-requests/:id/reject", verifyToken, isAdmin, async (req, res) 
     res.status(500).json({ message: "Failed to reject event" });
   }
 });
+
+// GET host applications with user and event details
+router.get("/host-applications", verifyToken, isAdmin, async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT ea.*,
+             u.fName, u.lName, u.email, u.phoneNb, u.age, u.description,
+             e.title as eventTitle, DATE(e.startsAt) as eventDate, e.location as eventLocation
+      FROM EVENT_APP ea
+      JOIN USERS u ON ea.senderId = u.userId
+      JOIN EVENTS e ON ea.eventId = e.eventId
+      WHERE ea.requestedRole = 'host'
+      ORDER BY ea.sentAt DESC
+    `);
+    res.json(rows);
+  } catch (err) {
+    console.error("Failed to fetch host applications", err);
+    res.status(500).json({ message: "Failed to fetch host applications" });
+  }
+});
+
+// Approve host application
+router.put("/host-applications/:id/approve", verifyToken, isAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await db.query(
+      "UPDATE EVENT_APP SET status = 'accepted', adminId = ?, decidedAt = NOW() WHERE eventAppId = ? AND status = 'pending'",
+      [req.user.id, id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Application not found or already processed" });
+    }
+    res.json({ message: "Application approved" });
+  } catch (err) {
+    console.error("Failed to approve application", err);
+    res.status(500).json({ message: "Failed to approve application" });
+  }
+});
+
+// Reject host application
+router.put("/host-applications/:id/reject", verifyToken, isAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await db.query(
+      "UPDATE EVENT_APP SET status = 'rejected', adminId = ?, decidedAt = NOW() WHERE eventAppId = ? AND status = 'pending'",
+      [req.user.id, id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Application not found or already processed" });
+    }
+    res.json({ message: "Application rejected" });
+  } catch (err) {
+    console.error("Failed to reject application", err);
+    res.status(500).json({ message: "Failed to reject application" });
+  }
+});
+
+// GET admin stats
+router.get("/stats", verifyToken, isAdmin, async (req, res) => {
+  try {
+    const [pendingRequests] = await db.query("SELECT COUNT(*) as count FROM EVENTS WHERE status = 'pending'");
+    const [totalApplications] = await db.query("SELECT COUNT(*) as count FROM EVENT_APP WHERE status = 'pending'");
+    const [approvedEvents] = await db.query("SELECT COUNT(*) as count FROM EVENTS WHERE status = 'accepted'");
+    const [activeHosts] = await db.query("SELECT COUNT(*) as count FROM USERS WHERE eligibility = 'approved'");
+
+    res.json({
+      pendingRequests: pendingRequests[0].count,
+      totalApplications: totalApplications[0].count,
+      approvedEvents: approvedEvents[0].count,
+      activeHosts: activeHosts[0].count,
+    });
+  } catch (err) {
+    console.error("Failed to fetch stats", err);
+    res.status(500).json({ message: "Failed to fetch stats" });
+  }
+});
+
 
 export default router;

@@ -8,16 +8,23 @@ const router = Router();
 
 router.get("/", verifyToken, isUserOrAdmin, async (req, res) => {
   try {
-    let query = "SELECT * FROM EVENT_APP";
-    let params = [];
-
-    if (req.user.role !== 'admin') {
-      query += " WHERE senderId = ?";
-      params.push(req.user.id);
+    if (req.user.role === 'admin') {
+      // For admins, return joined data for host applications
+      const [rows] = await db.query(`
+        SELECT ea.*,
+               u.fName, u.lName, u.email, u.phoneNb, u.age, u.description,
+               e.title as eventTitle, DATE(e.startsAt) as eventDate, e.location as eventLocation
+        FROM EVENT_APP ea
+        JOIN USERS u ON ea.senderId = u.userId
+        JOIN EVENTS e ON ea.eventId = e.eventId
+        ORDER BY ea.sentAt DESC
+      `);
+      res.json(rows);
+    } else {
+      // For users, return their applications
+      const [rows] = await db.query("SELECT * FROM EVENT_APP WHERE senderId = ?", [req.user.id]);
+      res.json(rows);
     }
-
-    const [rows] = await db.query(query, params);
-    res.json(rows);
   } catch (err) {
     console.error("Failed to fetch event app", err);
     res.status(500).json({ message: "Failed to fetch event app" });
@@ -44,6 +51,27 @@ router.get("/:id", verifyToken, isUserOrAdmin, async (req, res) => {
   } catch (err) {
     console.error("Failed to fetch event application", err);
     res.status(500).json({ message: "Failed to fetch event application" });
+  }
+});
+
+// GET applications for a specific event (admin only)
+router.get("/event/:eventId", verifyToken, isAdmin, async (req, res) => {
+  const { eventId } = req.params;
+  try {
+    const [rows] = await db.query(`
+      SELECT ea.*,
+             u.fName, u.lName, u.email, u.phoneNb, u.age, u.description,
+             e.title as eventTitle, DATE(e.startsAt) as eventDate, e.location as eventLocation
+      FROM EVENT_APP ea
+      JOIN USERS u ON ea.senderId = u.userId
+      JOIN EVENTS e ON ea.eventId = e.eventId
+      WHERE ea.eventId = ?
+      ORDER BY ea.sentAt DESC
+    `, [eventId]);
+    res.json(rows);
+  } catch (err) {
+    console.error("Failed to fetch applications for event", err);
+    res.status(500).json({ message: "Failed to fetch applications for event" });
   }
 });
 
