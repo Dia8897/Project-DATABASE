@@ -2,16 +2,16 @@
   
   
   /* Warm tones */
-  --color-warm-beige: #EDDCD2;
-  --color-cream: #FFF1E6;
-  --color-blush: #FDE2E4;
-  --color-rose: #FAD2E1;
+  --color-warm-beige: #FEF9F4;
+  --color-cream: #F7EEE7;
+  --color-blush: #D3B8AE;
+  --color-rose: #A26769;
   
   /* Cool tones */
-  --color-mint: #C5DEDD;
-  --color-sage: #DBE7E4;
-  --color-pearl: #F0EFEB;
-  --color-mist: #D6E2E9;
-  --color-sky: #BCD4E6;
-  --color-ocean: #99C1DE;
+  --color-mint: #383B47;
+  --color-sage: #1E1F25;
+  --color-pearl: #CFC3BE;
+  --color-mist: #F1E4DC;
+  --color-sky: #FBF3EE;
+  --color-ocean: #7E4B4F;
 }

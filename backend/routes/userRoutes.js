@@ -97,6 +97,106 @@ router.get("/", verifyToken, isAdmin, async (req, res) => {
   }
 });
 
+// GET /api/users/:id/overview - Fetch profile summary with related data
+router.get("/:id/overview", verifyToken, isUserOrAdmin, async (req, res) => {
+  const requestedId = parseInt(req.params.id, 10);
+  if (Number.isNaN(requestedId)) {
+    return res.status(400).json({ message: "Invalid user id" });
+  }
+
+  if (req.user.role !== "admin" && req.user.id !== requestedId) {
+    return res.status(403).json({ message: "Access denied" });
+  }
+
+  try {
+    const [userRows] = await db.query(
+      `SELECT userId, fName, lName, email, phoneNb, profilePic, age, gender,
+              address, isActive, eligibility, clothingSize, description, createdAt, updatedAt
+         FROM USERS
+        WHERE userId = ?`,
+      [requestedId]
+    );
+
+    if (!userRows.length) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const profile = userRows[0];
+
+    const [applications] = await db.query(
+      `SELECT ea.eventAppId, ea.status, ea.requestedRole, ea.assignedRole, ea.notes, ea.sentAt,
+              e.eventId, e.title, e.type, e.location, e.startsAt
+         FROM EVENT_APP ea
+         JOIN EVENTS e ON e.eventId = ea.eventId
+        WHERE ea.senderId = ?
+        ORDER BY ea.sentAt DESC`,
+      [requestedId]
+    );
+
+    const [attended] = await db.query(
+      `SELECT e.eventId, e.title, e.location, e.startsAt, e.endsAt,
+              ea.assignedRole,
+              IFNULL(CONCAT(c.fName, ' ', c.lName), NULL) AS clientName,
+              r.starRating
+         FROM EVENT_APP ea
+         JOIN EVENTS e ON e.eventId = ea.eventId
+    LEFT JOIN CLIENTS c ON c.clientId = e.clientId
+    LEFT JOIN REVIEW r ON r.eventId = e.eventId AND r.reviewerId = ea.senderId
+        WHERE ea.senderId = ?
+          AND ea.status = 'accepted'
+          AND e.endsAt <= NOW()
+        ORDER BY e.startsAt DESC`,
+      [requestedId]
+    );
+
+    const [trainingRows] = await db.query(
+      `SELECT t.trainingId, t.title, t.type, t.description, t.startTime, t.endTime, t.location, t.date
+         FROM TRAINEES tr
+         JOIN TRAINING t ON tr.trainingId = t.trainingId
+        WHERE tr.userId = ?
+        ORDER BY t.date DESC, t.startTime DESC`,
+      [requestedId]
+    );
+
+    const [clientRows] = await db.query(
+      `SELECT c.clientId,
+              CONCAT(c.fName, ' ', c.lName) AS name,
+              COUNT(*) AS eventsWorked,
+              MAX(e.endsAt) AS lastEvent,
+              ROUND(AVG(r.starRating), 2) AS rating
+         FROM EVENT_APP ea
+         JOIN EVENTS e ON e.eventId = ea.eventId
+         JOIN CLIENTS c ON c.clientId = e.clientId
+    LEFT JOIN REVIEW r ON r.eventId = e.eventId AND r.reviewerId = ea.senderId
+        WHERE ea.senderId = ? AND ea.status = 'accepted' AND c.clientId IS NOT NULL
+        GROUP BY c.clientId
+        ORDER BY lastEvent IS NULL, lastEvent DESC`,
+      [requestedId]
+    );
+
+    const normalizeDates = (rows, fields) =>
+      rows.map((row) => {
+        const normalized = { ...row };
+        fields.forEach((field) => {
+          if (normalized[field] instanceof Date) {
+            normalized[field] = normalized[field].toISOString();
+          }
+        });
+        return normalized;
+      });
+
+    res.json({
+      profile,
+      appliedEvents: normalizeDates(applications, ["sentAt", "startsAt"]),
+      attendedEvents: normalizeDates(attended, ["startsAt", "endsAt"]),
+      trainings: normalizeDates(trainingRows, ["date"]),
+      workedClients: normalizeDates(clientRows, ["lastEvent"]),
+    });
+  } catch (err) {
+    console.error("Failed to fetch user overview", err);
+    res.status(500).json({ message: "Failed to fetch user overview" });
+  }
+});
 
 // GET /api/users/:id - Fetch a single user by ID
 router.get("/:id", verifyToken, isUserOrAdmin, async (req, res) => {

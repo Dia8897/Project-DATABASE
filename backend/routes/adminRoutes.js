@@ -9,17 +9,17 @@ const router = Router();
 // GET all event requests with client information
 router.get("/event-requests", verifyToken, isAdmin, async (req, res) => {
   try {
-    const [rows] = await db.query(`
-      SELECT e.*,
-             COALESCE(c.fName, u.fName) as clientFName,
-             COALESCE(c.lName, u.lName) as clientLName,
-             COALESCE(c.email, u.email) as clientEmail,
-             COALESCE(c.phoneNb, u.phoneNb) as clientPhone
-      FROM EVENTS e
-      LEFT JOIN CLIENTS c ON e.clientId = c.clientId
-      LEFT JOIN USERS u ON e.clientId = u.userId
-      ORDER BY e.eventId DESC
-    `);
+    const [rows] = await db.query(
+      `SELECT e.*,
+              c.fName AS clientFirstName,
+              c.lName AS clientLastName,
+              c.email AS clientEmail,
+              c.phoneNb AS clientPhone
+         FROM EVENTS e
+    LEFT JOIN CLIENTS c ON c.clientId = e.clientId
+        WHERE e.status = 'pending'
+        ORDER BY e.createdAt DESC`
+    );
     res.json(rows);
   } catch (err) {
     console.error("Failed to fetch event requests", err);

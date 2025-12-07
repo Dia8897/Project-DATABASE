@@ -1,11 +1,55 @@
 // src/Pages/EventsPage.js
-import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import ApplyModal from "../components/ApplyModal";
 import EventDetailsModal from "../components/EventDetailsModal";
 import api from "../services/api";
+
+const formatDate = (value) => {
+  if (!value) return "TBA";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const titleCase = (text = "") =>
+  text
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+const normalizeCategory = (type) => {
+  if (!type) return "General";
+  return titleCase(type);
+};
+
+const normalizeEvent = (event = {}) => {
+  const startsAt = event.startsAt || event.starts_at || event.date || null;
+  const normalizedStatus = event.status || "pending";
+  return {
+    ...event,
+    startsAt,
+    date: event.date || formatDate(startsAt),
+    category: event.category || normalizeCategory(event.type),
+    badge: event.badge || titleCase(normalizedStatus),
+    shortDescription:
+      event.shortDescription ||
+      event.description ||
+      "Details will be available soon.",
+    description: event.description,
+    dressCode: event.dressCode || null,
+    nbOfHosts: event.nbOfHosts ?? event.hostsNeeded ?? null,
+    acceptedHostsCount: event.acceptedHostsCount ?? event.filledHosts ?? 0,
+    status: normalizedStatus,
+    imageUrl: event.imageUrl || null,
+  };
+};
 
 const DEMO_EVENTS = [
   {
@@ -119,8 +163,7 @@ const DEMO_EVENTS = [
 ];
 
 export default function EventsPage() {
-  const navigate = useNavigate();
-  const [testEvents, setTestEvents] = useState([]);
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [role, setRole] = useState(null);
@@ -131,15 +174,16 @@ export default function EventsPage() {
   const [detailsEvent, setDetailsEvent] = useState(null);
   const [lastApplication, setLastApplication] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all");
+  const [applications, setApplications] = useState([]);
 
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const response = await api.get('/events');
-        setTestEvents(response.data);
+        const response = await api.get("/events");
+        setEvents(response.data.map(normalizeEvent));
       } catch (err) {
-        setError('Failed to fetch events');
-        setTestEvents(DEMO_EVENTS); // Fallback to demo
+        setError("Failed to fetch events");
+        setEvents(DEMO_EVENTS.map(normalizeEvent)); // Fallback to demo data
       } finally {
         setLoading(false);
       }
@@ -177,41 +221,72 @@ export default function EventsPage() {
         spokenLanguages: ["English", "French", "Arabic"],
       });
     }
-    const storedRole = localStorage.getItem("role");
-    if (storedRole) setRole(storedRole);
   }, []);
+
+  const loadApplications = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setApplications([]);
+      return;
+    }
+    try {
+      const { data } = await api.get("/applications");
+      setApplications(data);
+    } catch (err) {
+      console.error("Failed to fetch applications", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadApplications();
+  }, [loadApplications, loggedInUser]);
+
+  const appliedEventIds = useMemo(
+    () => new Set(applications.map((app) => app.eventId)),
+    [applications]
+  );
 
   const sortedEvents = useMemo(
     () =>
-      [...testEvents].sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      [...events].sort(
+        (a, b) =>
+          new Date(a.startsAt || a.date).getTime() -
+          new Date(b.startsAt || b.date).getTime()
       ),
-    [testEvents]
+    [events]
   );
+  const spotlightEvent = sortedEvents[0];
+  const spotlightApplied = spotlightEvent
+    ? appliedEventIds.has(spotlightEvent.eventId)
+    : false;
 
   const categories = useMemo(() => {
     const unique = Array.from(
-      new Set(testEvents.map((event) => event.category).filter(Boolean))
+      new Set(events.map((event) => event.category).filter(Boolean))
     );
     return ["all", ...unique];
-  }, [testEvents]);
+  }, [events]);
 
   const filteredEvents = useMemo(() => {
-    if (activeFilter === "all") return testEvents;
-    return testEvents.filter((event) => event.category === activeFilter);
-  }, [activeFilter, testEvents]);
+    if (activeFilter === "all") return events;
+    return events.filter((event) => event.category === activeFilter);
+  }, [activeFilter, events]);
 
   const stats = useMemo(() => {
-    const luxury = testEvents.filter((event) => event.category === "Luxury").length;
-    const corporate = testEvents.filter((event) => event.category === "Corporate").length;
-    const training = testEvents.filter((event) => event.category === "Training").length;
+    const pending = events.filter((event) => event.status === "pending").length;
+    const accepted = events.filter((event) => event.status === "accepted").length;
+    const hostsNeeded = events.reduce((sum, event) => {
+      const remaining =
+        (event.nbOfHosts || 0) - (event.acceptedHostsCount || 0);
+      return sum + Math.max(remaining, 0);
+    }, 0);
     return [
-      { label: "Active events", value: testEvents.length },
-      { label: "Luxury nights", value: luxury },
-      { label: "Corporate days", value: corporate },
-      { label: "Training seats", value: training * 10 + "+" },
+      { label: "Active events", value: events.length },
+      { label: "Pending requests", value: pending },
+      { label: "Confirmed events", value: accepted },
+      { label: "Hosts needed", value: hostsNeeded },
     ];
-  }, [testEvents]);
+  }, [events]);
 
   const handleViewDetails = (event) => {
     setDetailsEvent(event);
@@ -219,6 +294,7 @@ export default function EventsPage() {
   };
 
   const handleApply = (event) => {
+    if (!event || appliedEventIds.has(event.eventId)) return;
     setDetailsEvent(null);
     setIsDetailsOpen(false);
     setSelectedEvent(event);
@@ -242,10 +318,14 @@ export default function EventsPage() {
 
     if (!payload) return;
 
-    const applicantName = [payload.applicant?.firstName, payload.applicant?.lastName]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
+    const applicantName =
+      payload.applicantName ||
+      [payload.applicant?.firstName, payload.applicant?.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+    loadApplications();
 
     setLastApplication({
       id: Date.now(),
@@ -263,7 +343,7 @@ export default function EventsPage() {
 
   return (
     <main className="bg-pearl min-h-screen">
-      <Navbar isLoggedIn={true} userType="host" />
+      <Navbar />
 
       <div className="pt-24 space-y-12">
         <section className="px-4">
@@ -293,21 +373,46 @@ export default function EventsPage() {
                   ))}
                 </div>
               </div>
-              {(role === "user" || role === "admin") && (
+              {spotlightEvent && (
                 <div className="bg-sky text-gray-900 rounded-3xl p-6 w-full lg:w-auto shadow-inner border border-sky space-y-4">
-                  <p className="text-xs uppercase tracking-[0.4em] text-ocean font-semibold">
-                    Trainings
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-[0.4em] text-ocean font-semibold">
+                      Spotlight
+                    </p>
+                    {spotlightEvent.badge && (
+                      <span className="px-3 py-1 rounded-full bg-white text-sm font-semibold text-ocean">
+                        {spotlightEvent.badge}
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="text-2xl font-semibold">
+                    {spotlightEvent.title}
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    {spotlightEvent.date} • {spotlightEvent.location}
                   </p>
-                  <h2 className="text-xl font-semibold">Grow skills & certifications</h2>
-                  <p className="text-sm text-gray-600">
-                    See upcoming sessions and schedules tailored for hosts.
+                  <p className="text-sm text-gray-600 line-clamp-3">
+                    {spotlightEvent.shortDescription}
                   </p>
-                  <button
-                    onClick={() => navigate("/trainings")}
-                    className="w-full px-4 py-2 rounded-lg bg-ocean text-white text-sm font-semibold hover:bg-ocean/90 transition"
-                  >
-                    View Trainings
-                  </button>
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => handleViewDetails(spotlightEvent)}
+                      className="flex-1 px-4 py-2 rounded-lg bg-white text-ocean text-sm font-semibold shadow border border-white hover:shadow-md"
+                    >
+                      Details
+                    </button>
+                    <button
+                      onClick={() => handleApply(spotlightEvent)}
+                      disabled={spotlightApplied}
+                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold ${
+                        spotlightApplied
+                          ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                          : "bg-ocean text-white hover:bg-ocean/80"
+                      }`}
+                    >
+                      {spotlightApplied ? "Applied" : "Apply"}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -350,7 +455,9 @@ export default function EventsPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {filteredEvents.map((event) => (
+                {filteredEvents.map((event) => {
+                  const alreadyApplied = appliedEventIds.has(event.eventId);
+                  return (
                   <article
                     key={event.eventId}
                     className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex gap-4 items-stretch"
@@ -396,14 +503,20 @@ export default function EventsPage() {
                         </button>
                         <button
                           onClick={() => handleApply(event)}
-                          className="flex-1 px-3 py-2 rounded-xl bg-ocean text-white text-sm font-semibold hover:bg-ocean/80"
+                          disabled={alreadyApplied}
+                          className={`flex-1 px-3 py-2 rounded-xl text-sm font-semibold ${
+                            alreadyApplied
+                              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                              : "bg-ocean text-white hover:bg-ocean/80"
+                          }`}
                         >
-                          Apply
+                          {alreadyApplied ? "Applied" : "Apply"}
                         </button>
                       </div>
                     </div>
                   </article>
-                ))}
+                );
+              })}
               </div>
             )}
           </div>
@@ -425,6 +538,7 @@ export default function EventsPage() {
           event={detailsEvent}
           onClose={handleCloseDetails}
           onApply={handleApply}
+          disableApply={appliedEventIds.has(detailsEvent.eventId)}
         />
       )}
 

@@ -33,7 +33,7 @@ export default function EventCard({
             className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
           />
         ) : (
-          <div className="h-full w-full bg-gradient-to-r from-indigo-100 via-purple-100 to-pink-100" />
+          <div className="h-full w-full bg-blush" />
         )}
         {(category || badge) && (
           <div className="absolute top-3 left-3 flex flex-wrap gap-2">

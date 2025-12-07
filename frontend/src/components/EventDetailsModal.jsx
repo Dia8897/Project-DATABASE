@@ -14,6 +14,7 @@ export default function EventDetailsModal({
   event,
   onClose,
   onApply,
+  disableApply = false,
 }) {
   if (!event) return null;
 
@@ -103,10 +104,15 @@ export default function EventDetailsModal({
             </button>
             <button
               type="button"
-              onClick={() => onApply?.(event)}
-              className="px-6 py-2 rounded-lg bg-ocean text-white text-sm font-semibold hover:bg-ocean/80"
+              onClick={() => !disableApply && onApply?.(event)}
+              disabled={disableApply}
+              className={`px-6 py-2 rounded-lg text-sm font-semibold ${
+                disableApply
+                  ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                  : "bg-ocean text-white hover:bg-ocean/80"
+              }`}
             >
-              Apply to this event
+              {disableApply ? "Already applied" : "Apply to this event"}
             </button>
           </div>
         </div>
