@@ -9,7 +9,17 @@ const router = Router();
 // GET pending event requests (must be before /:id to avoid route conflict)
 router.get("/event-requests", verifyToken, isAdmin, async (req, res) => {
   try {
-    const [rows] = await db.query("SELECT * FROM EVENTS WHERE status = 'pending'");
+    const [rows] = await db.query(
+      `SELECT e.*,
+              c.fName AS clientFirstName,
+              c.lName AS clientLastName,
+              c.email AS clientEmail,
+              c.phoneNb AS clientPhone
+         FROM EVENTS e
+    LEFT JOIN CLIENTS c ON c.clientId = e.clientId
+        WHERE e.status = 'pending'
+        ORDER BY e.createdAt DESC`
+    );
     res.json(rows);
   } catch (err) {
     console.error("Failed to fetch event requests", err);

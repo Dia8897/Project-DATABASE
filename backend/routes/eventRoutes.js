@@ -1,6 +1,6 @@
 import { Router } from "express";
 import db from "../config/db.js";
-import { verifyToken, isAdmin, isClient } from "../middleware/auth.js";
+import { verifyToken, isAdmin, isClient, isUserOrAdmin, isUser } from "../middleware/auth.js";
 
 const router = Router();
 const ALLOWED_STATUSES = ["pending", "accepted", "rejected"];
@@ -14,6 +14,182 @@ router.get("/", async (_req, res) => {
   } catch (err) {
     console.error("Failed to fetch events", err);
     res.status(500).json({ message: "Failed to fetch events" });
+  }
+});
+
+// Team leader/admin event overview
+router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
+  const eventId = parseInt(req.params.id, 10);
+  if (Number.isNaN(eventId)) {
+    return res.status(400).json({ message: "Invalid event id" });
+  }
+
+  try {
+    const [eventRows] = await db.query(
+      `SELECT e.*, 
+              c.fName AS clientFirstName, c.lName AS clientLastName,
+              c.email AS clientEmail, c.phoneNb AS clientPhone, c.address AS clientAddress,
+              tl.fName AS tlFirstName, tl.lName AS tlLastName
+         FROM EVENTS e
+    LEFT JOIN CLIENTS c ON c.clientId = e.clientId
+    LEFT JOIN USERS tl ON tl.userId = e.teamLeaderId
+        WHERE e.eventId = ?`,
+      [eventId]
+    );
+
+    if (!eventRows.length) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    const event = eventRows[0];
+
+    if (req.user.role === "user") {
+      const isAssignedLeader = event.teamLeaderId === req.user.id;
+      if (!isAssignedLeader) {
+        const [assignmentRows] = await db.query(
+          `SELECT 1 FROM EVENT_APP 
+            WHERE eventId = ? AND senderId = ? 
+              AND assignedRole = 'team_leader' AND status = 'accepted'`,
+          [eventId, req.user.id]
+        );
+        if (!assignmentRows.length) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+    }
+
+    const [hostRows] = await db.query(
+      `SELECT ea.eventAppId,
+              ea.assignedRole,
+              u.userId,
+              u.fName,
+              u.lName,
+              u.email,
+              u.phoneNb,
+              u.clothingSize,
+              u.profilePic,
+              u.description,
+              c.clothesId,
+              c.clothingLabel,
+              c.status   AS clothingStatus,
+              c.picture  AS clothingPicture,
+              c.description AS clothingDescription
+         FROM EVENT_APP ea
+         JOIN USERS u ON u.userId = ea.senderId
+    LEFT JOIN CLOTHING c ON c.eventAppId = ea.eventAppId
+        WHERE ea.eventId = ? AND ea.status = 'accepted'
+        ORDER BY ea.assignedRole DESC, u.fName`,
+      [eventId]
+    );
+
+    const [transportRows] = await db.query(
+      `SELECT transportationId,
+              vehicleCapacity,
+              pickupLocation,
+              departureTime,
+              returnTime,
+              payment
+         FROM TRANSPORTATION
+        WHERE eventId = ?
+        ORDER BY departureTime`,
+      [eventId]
+    );
+
+    const normalizeDate = (value) =>
+      value instanceof Date ? value.toISOString() : value;
+
+    const client = event.clientId
+      ? {
+          id: event.clientId,
+          name: [event.clientFirstName, event.clientLastName].filter(Boolean).join(" ").trim() || null,
+          email: event.clientEmail || null,
+          phone: event.clientPhone || null,
+          address: event.clientAddress || null,
+        }
+      : null;
+
+    const teamLeaderName = [event.tlFirstName, event.tlLastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    res.json({
+      event: {
+        eventId: event.eventId,
+        title: event.title,
+        type: event.type,
+        description: event.description,
+        location: event.location,
+        startsAt: normalizeDate(event.startsAt),
+        endsAt: normalizeDate(event.endsAt),
+        venue: event.venue,
+        nbOfHosts: event.nbOfHosts,
+        dressCode: event.dressCode ?? null,
+        status: event.status,
+        teamLeaderId: event.teamLeaderId,
+        teamLeaderName: teamLeaderName || null,
+      },
+      client,
+      hosts: hostRows.map((host) => ({
+        eventAppId: host.eventAppId,
+        userId: host.userId,
+        name: `${host.fName} ${host.lName}`.trim(),
+        email: host.email,
+        phone: host.phoneNb,
+        role: host.assignedRole === "team_leader" ? "Team Leader" : "Host",
+        clothingSize: host.clothingSize,
+        profileImage: host.profilePic,
+        description: host.description,
+        outfit: host.clothesId
+          ? {
+              clothesId: host.clothesId,
+              label: host.clothingLabel,
+              status: host.clothingStatus,
+              picture: host.clothingPicture,
+              description: host.clothingDescription,
+            }
+          : null,
+      })),
+      transportation: transportRows.map((row) => ({
+        transportationId: row.transportationId,
+        vehicleCapacity: row.vehicleCapacity,
+        pickupLocation: row.pickupLocation,
+        departureTime: normalizeDate(row.departureTime),
+        returnTime: normalizeDate(row.returnTime),
+        payment: row.payment,
+      })),
+    });
+  } catch (err) {
+    console.error("Failed to fetch team view", err);
+    res.status(500).json({ message: "Failed to fetch team view" });
+  }
+});
+
+router.get("/team-leader/assignments", verifyToken, isUser, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const [rows] = await db.query(
+      `SELECT DISTINCT e.eventId,
+              e.title,
+              e.status,
+              e.startsAt,
+              e.location,
+              e.teamLeaderId
+         FROM EVENTS e
+    LEFT JOIN EVENT_APP ea
+           ON ea.eventId = e.eventId
+          AND ea.senderId = ?
+          AND ea.assignedRole = 'team_leader'
+          AND ea.status = 'accepted'
+        WHERE e.teamLeaderId = ?
+           OR ea.eventAppId IS NOT NULL
+        ORDER BY e.startsAt DESC`,
+      [userId, userId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("Failed to fetch team leader assignments", err);
+    res.status(500).json({ message: "Failed to fetch team leader assignments" });
   }
 });
 

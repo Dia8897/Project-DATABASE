@@ -15,7 +15,7 @@ export default function ClientEventRequest({
   return (
     <div className="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-sky to-mist px-8 py-6 border-b border-gray-100">
+      <div className="bg-cream px-8 py-6 border-b border-gray-100">
         <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">
           Create Request
         </p>

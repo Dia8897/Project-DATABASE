@@ -19,7 +19,7 @@ export default function WorkedClients({ clients }) {
   return (
     <div className="space-y-6">
       {/* Summary */}
-      <div className="bg-gradient-to-r from-ocean to-sky rounded-3xl p-6 text-white">
+      <div className="bg-rose rounded-3xl p-6 text-white">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <p className="text-white/80 text-sm uppercase tracking-wide">Client Network</p>

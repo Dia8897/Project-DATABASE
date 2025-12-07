@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import api from "../services/api";
 
 function MenuIcon({ size = 24 }) {
     return (
@@ -26,12 +27,114 @@ function UserIcon({ size = 24 }) {
     );
 }
 
-export default function Navbar({ isLoggedIn = false, userType = null }) {
+const AUTH_EVENT = "gatherly-auth";
+
+const readSession = () => {
+    if (typeof window === "undefined") {
+        return { token: null, user: null, userType: null };
+    }
+    const token = localStorage.getItem("token");
+    const userRaw = localStorage.getItem("user");
+    const storedRole = localStorage.getItem("userRole");
+    let user = null;
+    if (userRaw) {
+        try {
+            user = JSON.parse(userRaw);
+        } catch (err) {
+            console.warn("Failed to parse stored user", err);
+        }
+    }
+    const role = storedRole || user?.role || null;
+    return { token, user, userType: role };
+};
+
+export default function Navbar() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [session, setSession] = useState(() => readSession());
+    const [teamLeaderEvent, setTeamLeaderEvent] = useState(null);
     const navigate = useNavigate();
 
-    const handleProfileClick = () => navigate("/profile");
-    const handleLogout = () => navigate("/");
+    useEffect(() => {
+        const syncSession = () => setSession(readSession());
+        syncSession();
+
+        window.addEventListener(AUTH_EVENT, syncSession);
+        window.addEventListener("storage", syncSession);
+        return () => {
+            window.removeEventListener(AUTH_EVENT, syncSession);
+            window.removeEventListener("storage", syncSession);
+        };
+    }, []);
+
+    const isLoggedIn = Boolean(session.token && session.user);
+    const displayRole = session.userType ? session.userType.replace(/_/g, " ") : null;
+
+    const profilePath =
+        session.userType === "admin"
+            ? "/admin"
+            : session.userType === "client"
+            ? "/client"
+            : "/profile";
+
+    const handleProfileClick = () => {
+        if (!isLoggedIn) return;
+        navigate(profilePath);
+        setMobileMenuOpen(false);
+    };
+
+    const handleLogout = () => {
+        if (typeof window !== "undefined") {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            localStorage.removeItem("userRole");
+            window.dispatchEvent(new Event(AUTH_EVENT));
+        }
+        setSession(readSession());
+        setMobileMenuOpen(false);
+        navigate("/");
+    };
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadTeamLeaderEvent = async () => {
+            if (!session.user || session.userType !== "host") {
+                setTeamLeaderEvent(null);
+                return;
+            }
+
+            try {
+                const { data } = await api.get("/events/team-leader/assignments");
+                if (cancelled) return;
+                if (Array.isArray(data) && data.length > 0) {
+                    setTeamLeaderEvent({
+                        id: data[0].eventId,
+                        title: data[0].title,
+                    });
+                } else {
+                    setTeamLeaderEvent(null);
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    console.warn("Failed to load team leader assignment", err);
+                    setTeamLeaderEvent(null);
+                }
+            }
+        };
+
+        loadTeamLeaderEvent();
+        return () => {
+            cancelled = true;
+        };
+    }, [session.user, session.userType]);
+
+    const handleTeamLeaderNavigate = () => {
+        if (!teamLeaderEvent) return;
+        navigate(`/team-leader/event/${teamLeaderEvent.id}`);
+        setMobileMenuOpen(false);
+    };
+
+    const showTeamLeaderLink = Boolean(teamLeaderEvent && isLoggedIn);
 
     return (
         <header className="w-full fixed top-0 left-0 z-50 bg-rose shadow-sm">
@@ -53,6 +156,14 @@ export default function Navbar({ isLoggedIn = false, userType = null }) {
                 <div className="hidden md:flex items-center space-x-4">
                     {isLoggedIn && (
                         <>
+                            {showTeamLeaderLink && (
+                                <button
+                                    onClick={handleTeamLeaderNavigate}
+                                    className="px-4 py-2 rounded-lg bg-white/20 text-white font-semibold hover:bg-white/30 transition"
+                                >
+                                    Team Leader
+                                </button>
+                            )}
                             <button
                                 onClick={handleProfileClick}
                                 className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition"
@@ -60,9 +171,11 @@ export default function Navbar({ isLoggedIn = false, userType = null }) {
                             >
                                 <UserIcon size={20} />
                             </button>
-                            <span className="px-3 py-1 rounded-full bg-white/20 text-white text-xs font-medium uppercase">
-                                {userType}
-                            </span>
+                            {displayRole && (
+                                <span className="px-3 py-1 rounded-full bg-white/20 text-white text-xs font-medium uppercase">
+                                    {displayRole}
+                                </span>
+                            )}
                             <button
                                 onClick={handleLogout}
                                 className="px-4 py-2 border border-white/50 text-white rounded-lg font-medium transition hover:bg-white/10"
@@ -94,6 +207,14 @@ export default function Navbar({ isLoggedIn = false, userType = null }) {
 
                     {isLoggedIn && (
                         <div className="border-t px-6 py-4 space-y-3">
+                            {showTeamLeaderLink && (
+                                <button
+                                    onClick={handleTeamLeaderNavigate}
+                                    className="w-full px-4 py-3 bg-mint text-white rounded-lg font-semibold flex items-center justify-center gap-2"
+                                >
+                                    Team Leader
+                                </button>
+                            )}
                             <button
                                 onClick={handleProfileClick}
                                 className="w-full px-4 py-3 bg-ocean text-white rounded-lg font-medium flex items-center justify-center gap-2"

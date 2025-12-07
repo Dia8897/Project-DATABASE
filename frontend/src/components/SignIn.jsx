@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { X, Mail, Lock, User, ArrowRight } from "lucide-react";
 import api from "../services/api";
 
+const AUTH_EVENT = "gatherly-auth";
+
 export default function AuthModal({ show, onClose, initialRole = "host" }) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [activeRole, setActiveRole] = useState(initialRole);
@@ -26,10 +28,15 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const role = activeRole === "host" ? "user" : activeRole; // Map host to user
-      const response = await api.post('/auth/login', { email: formData.email, password: formData.password, role });
+      const apiRole = activeRole === "host" ? "user" : activeRole; // Map host to backend role
+      const response = await api.post('/auth/login', { email: formData.email, password: formData.password, role: apiRole });
+
+      const storedUser = { ...response.data.user, role: activeRole };
       localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('user', JSON.stringify(storedUser));
+      localStorage.setItem('userRole', activeRole);
+      window.dispatchEvent(new Event(AUTH_EVENT));
+
       onClose();
       navigate(activeRole === "admin" ? "/admin" : activeRole === "client" ? "/client" : "/events");
     } catch (err) {
@@ -60,7 +67,7 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-ocean to-sky p-6 text-white">
+        <div className="relative bg-rose p-6 text-white">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition"

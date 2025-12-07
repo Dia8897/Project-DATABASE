@@ -8,11 +8,36 @@ const router = Router();
 
 router.get("/", verifyToken, isUserOrAdmin, async (req, res) => {
   try {
-    let query = "SELECT * FROM EVENT_APP";
+    let query;
     let params = [];
 
-    if (req.user.role !== 'admin') {
-      query += " WHERE senderId = ?";
+    if (req.user.role === "admin") {
+      query = `
+        SELECT ea.*,
+               u.userId AS applicantUserId,
+               u.fName AS applicantFirstName,
+               u.lName AS applicantLastName,
+               u.email AS applicantEmail,
+               u.phoneNb AS applicantPhone,
+               u.clothingSize AS applicantClothingSize,
+               u.description AS applicantDescription
+          FROM EVENT_APP ea
+          JOIN USERS u ON u.userId = ea.senderId
+         ORDER BY ea.sentAt DESC`;
+    } else {
+      query = `
+        SELECT ea.*,
+               u.userId AS applicantUserId,
+               u.fName AS applicantFirstName,
+               u.lName AS applicantLastName,
+               u.email AS applicantEmail,
+               u.phoneNb AS applicantPhone,
+               u.clothingSize AS applicantClothingSize,
+               u.description AS applicantDescription
+          FROM EVENT_APP ea
+          JOIN USERS u ON u.userId = ea.senderId
+         WHERE ea.senderId = ?
+         ORDER BY ea.sentAt DESC`;
       params.push(req.user.id);
     }
 

@@ -3,6 +3,7 @@ import { Mail, Phone, MapPin, Star } from "lucide-react";
 
 export default function ProfileHeader({ profile }) {
   const initials = `${profile.fName?.[0] || ""}${profile.lName?.[0] || ""}`;
+  const avatarSrc = profile.profileImage || profile.profilePic || null;
 
   return (
     <section className="px-4">
@@ -10,14 +11,14 @@ export default function ProfileHeader({ profile }) {
         <div className="flex flex-col md:flex-row gap-8">
           {/* Avatar */}
           <div className="flex-shrink-0">
-            {profile.profileImage ? (
+            {avatarSrc ? (
               <img
-                src={profile.profileImage}
+                src={avatarSrc}
                 alt={`${profile.fName} ${profile.lName}`}
                 className="w-32 h-32 rounded-full object-cover border-4 border-sky"
               />
             ) : (
-              <div className="w-32 h-32 rounded-full bg-gradient-to-br from-ocean to-sky flex items-center justify-center text-white text-4xl font-bold">
+              <div className="w-32 h-32 rounded-full bg-ocean flex items-center justify-center text-white text-4xl font-bold">
                 {initials}
               </div>
             )}
@@ -76,11 +77,18 @@ export default function ProfileHeader({ profile }) {
                 <span>{profile.address}</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                {profile.spokenLanguages?.map((lang) => (
-                  <span key={lang} className="px-3 py-1 rounded-full bg-mist text-gray-700 text-xs font-medium">
-                    {lang}
+                {profile.spokenLanguages?.length ? (
+                  profile.spokenLanguages.map((lang) => (
+                    <span key={lang} className="px-3 py-1 rounded-full bg-mist text-gray-700 text-xs font-medium">
+                      {lang}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-gray-500">
+                    {/* Languages are not tracked in the DB yet; keep placeholder for future column. */}
+                    Languages coming soon
                   </span>
-                ))}
+                )}
               </div>
             </div>
           </div>

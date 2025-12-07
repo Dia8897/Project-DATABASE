@@ -1,8 +1,8 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { User, Mail, Phone, Star, Eye, Languages, Shirt } from "lucide-react";
+import { User, Mail, Phone, Star, Eye, Languages, Shirt, CheckCircle, Clock } from "lucide-react";
 
-export default function AcceptedHosts({ hosts }) {
+export default function AcceptedHosts({ hosts, attendance = {}, onToggleAttendance = () => {} }) {
   if (hosts.length === 0) {
     return (
       <div className="bg-white rounded-3xl border border-dashed border-gray-200 p-12 text-center">
@@ -36,7 +36,12 @@ export default function AcceptedHosts({ hosts }) {
       <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {hosts.map((host) => {
-            const initials = host.name.split(" ").map(n => n[0]).join("");
+            const initials = host.name
+              .split(" ")
+              .filter(Boolean)
+              .map((n) => n[0])
+              .join("");
+            const isCheckedIn = Boolean(attendance[String(host.userId)]);
             
             return (
               <article
@@ -52,7 +57,7 @@ export default function AcceptedHosts({ hosts }) {
                       className="w-14 h-14 rounded-xl object-cover"
                     />
                   ) : (
-                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-ocean to-sky flex items-center justify-center text-white text-lg font-bold">
+                    <div className="w-14 h-14 rounded-xl bg-ocean flex items-center justify-center text-white text-lg font-bold">
                       {initials}
                     </div>
                   )}
@@ -61,7 +66,9 @@ export default function AcceptedHosts({ hosts }) {
                     <p className="text-sm text-gray-500">{host.role}</p>
                     <div className="flex items-center gap-1 mt-1">
                       <Star size={14} className="text-yellow-500" fill="currentColor" />
-                      <span className="text-sm font-medium text-gray-700">{host.rating}</span>
+                      <span className="text-sm font-medium text-gray-700">
+                        {host.rating ?? "TBD"}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -78,22 +85,68 @@ export default function AcceptedHosts({ hosts }) {
                   </div>
                   <div className="flex items-center gap-2 text-gray-600">
                     <Languages size={14} className="text-ocean flex-shrink-0" />
-                    <span>{host.languages.join(", ")}</span>
+                    <span>
+                      {host.languages && host.languages.length
+                        ? host.languages.join(", ")
+                        : "Languages pending"}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 text-gray-600">
                     <Shirt size={14} className="text-ocean flex-shrink-0" />
-                    <span>Size: {host.clothingSize}</span>
+                    <span>Size: {host.clothingSize || "N/A"}</span>
                   </div>
+                  {host.outfit ? (
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Shirt size={14} className="text-ocean flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold text-gray-800">{host.outfit.label}</p>
+                        <p className="text-xs uppercase tracking-wide text-gray-500">
+                          {host.outfit.status}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <Shirt size={14} className="text-ocean flex-shrink-0" />
+                      <span>Uniform pending assignment</span>
+                    </div>
+                  )}
+                  {host.outfit?.description && (
+                    <p className="text-xs text-gray-500 italic">"{host.outfit.description}"</p>
+                  )}
                 </div>
 
-                {/* View Profile Button */}
-                <Link
-                  to={`/profile/${host.userId}`}
-                  className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-ocean text-ocean text-sm font-semibold hover:bg-sky transition"
-                >
-                  <Eye size={16} />
-                  View Full Profile
-                </Link>
+                {/* Actions */}
+                <div className="mt-4 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => onToggleAttendance(host.userId)}
+                    className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+                      isCheckedIn
+                        ? "bg-mint/40 text-green-800 border border-green-200"
+                        : "border border-gray-200 text-gray-700 hover:border-ocean hover:text-ocean"
+                    }`}
+                  >
+                    {isCheckedIn ? (
+                      <>
+                        <CheckCircle size={16} />
+                        Checked In
+                      </>
+                    ) : (
+                      <>
+                        <Clock size={16} />
+                        Awaiting Arrival
+                      </>
+                    )}
+                  </button>
+                  <Link
+                    to={`/profile/${host.userId}`}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-ocean text-ocean text-sm font-semibold hover:bg-sky transition"
+                  >
+                    <Eye size={16} />
+                    View Full Profile
+                  </Link>
+                </div>
               </article>
             );
           })}

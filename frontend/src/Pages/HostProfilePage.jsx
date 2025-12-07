@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -8,58 +8,148 @@ import AppliedEvents from "../components/profile/AppliedEvents";
 import AttendedEvents from "../components/profile/AttendedEvents";
 import Trainings from "../components/profile/Trainings";
 import WorkedClients from "../components/profile/WorkedClients";
+import api from "../services/api";
+
+const formatDate = (value, options = { year: "numeric", month: "short", day: "numeric" }) => {
+  if (!value) return "TBA";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "TBA";
+  return date.toLocaleDateString(undefined, options);
+};
+
+const formatStatus = (status = "") => {
+  const normalized = status.toLowerCase();
+  if (normalized === "accepted") return "Accepted";
+  if (normalized === "rejected") return "Rejected";
+  return "Pending";
+};
+
+const formatRole = (role = "") =>
+  role
+    ? role
+        .split("_")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ")
+    : "Host";
+
+const buildTrainingStatus = (dateValue) => {
+  if (!dateValue) return "Upcoming";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const trainingDate = new Date(dateValue);
+  return trainingDate < today ? "Completed" : "Upcoming";
+};
+
+const buildTrainingDuration = (startTime, endTime) => {
+  if (!startTime || !endTime) return "Time TBD";
+  return `${startTime.slice(0, 5)} - ${endTime.slice(0, 5)}`;
+};
 
 export default function HostProfilePage() {
   const { hostId } = useParams();
   const [activeTab, setActiveTab] = useState("applied");
+  const [profile, setProfile] = useState(null);
+  const [appliedEvents, setAppliedEvents] = useState([]);
+  const [attendedEvents, setAttendedEvents] = useState([]);
+  const [trainings, setTrainings] = useState([]);
+  const [workedClients, setWorkedClients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [checkedUser, setCheckedUser] = useState(false);
 
-  const hostProfile = {
-    userId: hostId || 42,
-    fName: "Lina",
-    lName: "Saliba",
-    email: "lina.saliba@example.com",
-    phoneNb: "+961 70 123 456",
-    gender: "F",
-    age: 26,
-    address: "Beirut Downtown, Biel",
-    clothingSize: "S",
-    eligibility: "approved",
-    yearsOfExperience: 4,
-    rating: 4.8,
-    totalEvents: 28,
-    description: "VIP hostess with corporate and luxury retail experience, bilingual ENG/FR",
-    spokenLanguages: ["English", "French", "Arabic"],
-    profileImage: null,
-  };
+  useEffect(() => {
+    const stored = localStorage.getItem("user");
+    if (stored) {
+      try {
+        setCurrentUser(JSON.parse(stored));
+      } catch {
+        console.warn("Failed to parse stored user");
+      }
+    }
+    setCheckedUser(true);
+  }, []);
 
-  const appliedEvents = [
-    { id: 1, title: "Gala Night", date: "2026-01-15", location: "Ritz Ballroom", status: "Pending", category: "Luxury" },
-    { id: 2, title: "Corporate Conference", date: "2026-02-01", location: "Downtown Convention Center", status: "Accepted", category: "Corporate" },
-    { id: 3, title: "Fashion Week Showcase", date: "2026-01-28", location: "Warehouse District Studio 5", status: "Pending", category: "Luxury" },
-  ];
+  useEffect(() => {
+    if (!checkedUser) return;
+    const resolvedId = hostId || currentUser?.userId;
 
-  const attendedEvents = [
-    { id: 1, title: "Tech Product Launch", date: "2025-10-15", location: "Atelier 9 Studio", role: "Host", rating: 5.0, client: "TechCorp Lebanon" },
-    { id: 2, title: "Charity Gala", date: "2025-09-20", location: "Four Seasons Hotel", role: "Team Leader", rating: 4.9, client: "Hope Foundation" },
-    { id: 3, title: "Wedding Reception", date: "2025-08-12", location: "Le Royal Hotel", role: "Host", rating: 4.8, client: "Private Client" },
-    { id: 4, title: "Corporate Summit", date: "2025-07-05", location: "BIEL Convention Center", role: "Host", rating: 4.7, client: "Global Solutions Inc." },
-    { id: 5, title: "Art Gallery Opening", date: "2025-06-18", location: "Gemmayzeh Art District", role: "Host", rating: 5.0, client: "Beirut Contemporary Art" },
-  ];
+    if (!resolvedId) {
+      setLoading(false);
+      setError("Please sign in to view this profile.");
+      return;
+    }
 
-  const trainings = [
-    { id: 1, title: "VIP Guest Management", date: "2025-11-01", duration: "4 hours", status: "Completed", certificate: true },
-    { id: 2, title: "Event Safety & Protocols", date: "2025-10-15", duration: "3 hours", status: "Completed", certificate: true },
-    { id: 3, title: "Luxury Brand Standards", date: "2025-09-20", duration: "6 hours", status: "Completed", certificate: true },
-    { id: 4, title: "Team Leadership Essentials", date: "2026-01-08", duration: "4 hours", status: "Upcoming", certificate: false },
-  ];
+    const fetchOverview = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data } = await api.get(`/users/${resolvedId}/overview`);
 
-  const workedClients = [
-    { id: 1, name: "TechCorp Lebanon", eventsWorked: 3, lastEvent: "2025-10-15", rating: 4.9 },
-    { id: 2, name: "Hope Foundation", eventsWorked: 2, lastEvent: "2025-09-20", rating: 5.0 },
-    { id: 3, name: "Le Royal Hotel", eventsWorked: 4, lastEvent: "2025-08-12", rating: 4.8 },
-    { id: 4, name: "Global Solutions Inc.", eventsWorked: 2, lastEvent: "2025-07-05", rating: 4.7 },
-    { id: 5, name: "Beirut Contemporary Art", eventsWorked: 1, lastEvent: "2025-06-18", rating: 5.0 },
-  ];
+        setProfile({
+          ...data.profile,
+          profileImage: data.profile.profilePic || null,
+          // DB does not yet store spokenLanguages or yearsOfExperience; consider adding columns later.
+        });
+
+        setAppliedEvents(
+          data.appliedEvents.map((event) => ({
+            id: event.eventAppId,
+            title: event.title,
+            date: formatDate(event.startsAt),
+            location: event.location || "Location TBA",
+            status: formatStatus(event.status),
+            category: event.type
+              ? event.type.charAt(0).toUpperCase() + event.type.slice(1)
+              : "General",
+          }))
+        );
+
+        setAttendedEvents(
+          data.attendedEvents.map((event) => ({
+            id: event.eventId,
+            title: event.title,
+            date: formatDate(event.startsAt),
+            location: event.location || "Location TBA",
+            role: formatRole(event.assignedRole),
+            rating: typeof event.starRating === "number" ? event.starRating.toFixed(1) : "N/A",
+            client: event.clientName || "Client undisclosed",
+          }))
+        );
+
+        setTrainings(
+          data.trainings.map((training) => ({
+            id: training.trainingId,
+            title: training.title,
+            date: formatDate(training.date),
+            duration: buildTrainingDuration(training.startTime, training.endTime),
+            status: buildTrainingStatus(training.date),
+            certificate: false, // Certificates are not tracked in the DB yet.
+          }))
+        );
+
+        setWorkedClients(
+          data.workedClients.map((client) => ({
+            id: client.clientId,
+            name: client.name,
+            eventsWorked: client.eventsWorked,
+            lastEvent: client.lastEvent ? formatDate(client.lastEvent) : "N/A",
+            rating:
+              typeof client.rating === "number" && !Number.isNaN(client.rating)
+                ? client.rating.toFixed(1)
+                : "N/A",
+          }))
+        );
+      } catch (err) {
+        const message = err.response?.data?.message || "Failed to load profile";
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOverview();
+  }, [hostId, currentUser, checkedUser]);
 
   const tabs = [
     { id: "applied", label: "Applied Events", count: appliedEvents.length },
@@ -68,13 +158,35 @@ export default function HostProfilePage() {
     { id: "clients", label: "Clients", count: workedClients.length },
   ];
 
+  if (loading) {
+    return (
+      <main className="bg-pearl min-h-screen flex items-center justify-center">
+        <p className="text-gray-600">Loading profile...</p>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="bg-pearl min-h-screen flex items-center justify-center">
+        <div className="bg-white rounded-3xl shadow-lg p-8 text-center border border-gray-100">
+          <p className="text-gray-700 font-semibold">{error}</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!profile) {
+    return null;
+  }
+
   return (
     <main className="bg-pearl min-h-screen">
-      <Navbar isLoggedIn={true} userType="host" />
+      <Navbar />
 
       <div className="pt-24 space-y-8">
-        <ProfileHeader profile={hostProfile} />
-        <ProfileStats profile={hostProfile} eventsCount={attendedEvents.length} clientsCount={workedClients.length} />
+        <ProfileHeader profile={profile} />
+        <ProfileStats profile={profile} eventsCount={attendedEvents.length} clientsCount={workedClients.length} />
 
         {/* Tab Navigation */}
         <section className="px-4">

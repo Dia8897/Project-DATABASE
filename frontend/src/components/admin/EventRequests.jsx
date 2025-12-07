@@ -1,178 +1,167 @@
-import React, { useState, useMemo } from "react";
-import { CheckCircle, XCircle, Calendar, MapPin, Users, Clock } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { CheckCircle, XCircle, Calendar, MapPin, Users, Clock, Eye, Mail, Phone, User, X } from "lucide-react";
+import api from "../../services/api";
+
+const CLIENT_FIELDS = ["clientFirstName", "clientLastName", "clientEmail", "clientPhone"];
+
+const formatDate = (value) => {
+  if (!value) return "TBA";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const toTitleCase = (value = "") =>
+  value
+    .split(/[\s_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ") || "General";
+
+const normalizeRequest = (request) => {
+  const clientName = [request.clientFirstName, request.clientLastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return {
+    id: request.eventId,
+    title: request.title || "Untitled Event",
+    type: request.type || "Event",
+    category: toTitleCase(request.type),
+    clientName: clientName || "Client details pending",
+    clientEmail: request.clientEmail || "Not provided",
+    clientPhone: request.clientPhone || "Not provided",
+    date: formatDate(request.startsAt),
+    location: request.location || "Location TBA",
+    nbOfHosts: request.nbOfHosts || 0,
+    dressCode: request.dressCode || "Not specified",
+    description: request.description || "No description provided.",
+    status: toTitleCase(request.status || "pending"),
+    submittedDate: formatDate(request.createdAt),
+  };
+};
+
+const needsClientHydration = (request = {}) =>
+  request.clientId && CLIENT_FIELDS.some((field) => !request[field]);
+
+const hydrateRequests = async (rawRequests) => {
+  const normalized = rawRequests.map(normalizeRequest);
+  const clientIds = Array.from(
+    new Set(rawRequests.filter(needsClientHydration).map((req) => req.clientId))
+  );
+
+  if (!clientIds.length) {
+    return normalized;
+  }
+
+  const clientResults = await Promise.allSettled(
+    clientIds.map((clientId) => api.get(`/clients/${clientId}`))
+  );
+
+  const clientMap = new Map();
+  clientResults.forEach((result, index) => {
+    if (result.status === "fulfilled" && result.value?.data) {
+      clientMap.set(clientIds[index], result.value.data);
+    }
+  });
+
+  if (!clientMap.size) {
+    return normalized;
+  }
+
+  return normalized.map((request, index) => {
+    const raw = rawRequests[index];
+    const client = clientMap.get(raw.clientId);
+
+    if (!client) return request;
+
+    const hydratedName = [client.fName, client.lName].filter(Boolean).join(" ").trim();
+
+    return {
+      ...request,
+      clientName: hydratedName || request.clientName,
+      clientEmail: client.email || request.clientEmail,
+      clientPhone: client.phoneNb || request.clientPhone,
+    };
+  });
+};
 
 export default function EventRequests() {
   const [activeFilter, setActiveFilter] = useState("all");
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [detailModal, setDetailModal] = useState(null);
 
-  // Sample event requests data
-  const eventRequests = [
-    {
-      requestId: 1,
-      title: "Luxury Wedding Reception",
-      type: "Wedding",
-      category: "Luxury",
-      clientName: "Sarah & Michael Thompson",
-      clientEmail: "sarah.thompson@email.com",
-      clientPhone: "+961 71 234 567",
-      date: "2026-05-20",
-      location: "Le Royal Hotel, Beirut",
-      nbOfHosts: 12,
-      dressCode: "Black Tie",
-      description: "Elegant outdoor wedding reception with 200 guests. Need professional hosts for guest coordination, cocktail service, and event flow management.",
-      budget: "$15,000",
-      status: "Pending",
-      submittedDate: "2025-11-20",
-    },
-    {
-      requestId: 2,
-      title: "Corporate Product Launch",
-      type: "Corporate Event",
-      category: "Corporate",
-      clientName: "TechCorp Lebanon",
-      clientEmail: "events@techcorp.lb",
-      clientPhone: "+961 3 456 789",
-      date: "2026-02-15",
-      location: "BIEL Convention Center",
-      nbOfHosts: 20,
-      dressCode: "Business Casual",
-      description: "Tech company launching new product with demo stations, VIP area, and media coverage. Need hosts for registration, demo assistance, and crowd management.",
-      budget: "$25,000",
-      status: "Pending",
-      submittedDate: "2025-11-22",
-    },
-    {
-      requestId: 3,
-      title: "Charity Gala Dinner",
-      type: "Gala",
-      category: "Luxury",
-      clientName: "Hope Foundation",
-      clientEmail: "contact@hopefoundation.org",
-      clientPhone: "+961 70 987 654",
-      date: "2026-03-10",
-      location: "Four Seasons Hotel",
-      nbOfHosts: 15,
-      dressCode: "Formal Evening Wear",
-      description: "Annual charity gala with auction, entertainment, and VIP guests. Hosts needed for guest welcome, auction management, and table service.",
-      budget: "$18,000",
-      status: "Pending",
-      submittedDate: "2025-11-23",
-    },
-    {
-      requestId: 4,
-      title: "Birthday Party Celebration",
-      type: "Birthday",
-      category: "Personal",
-      clientName: "Nadia Khouri",
-      clientEmail: "nadia.khouri@email.com",
-      clientPhone: "+961 76 543 210",
-      date: "2026-01-30",
-      location: "Private Villa, Jounieh",
-      nbOfHosts: 6,
-      dressCode: "Smart Casual",
-      description: "50th birthday party with 80 guests. Need hosts for guest coordination, food service, and entertainment support.",
-      budget: "$8,000",
-      status: "Approved",
-      submittedDate: "2025-11-15",
-    },
-    {
-      requestId: 5,
-      title: "Music Festival",
-      type: "Festival",
-      category: "Outdoor",
-      clientName: "Beirut Events Co.",
-      clientEmail: "info@beirutevents.com",
-      clientPhone: "+961 3 111 222",
-      date: "2026-04-05",
-      location: "Beirut Waterfront",
-      nbOfHosts: 30,
-      dressCode: "Casual/Branded T-shirts",
-      description: "Two-day music festival with multiple stages. Need hosts for entry management, VIP area, artist liaison, and crowd control.",
-      budget: "$40,000",
-      status: "Pending",
-      submittedDate: "2025-11-24",
-    },
-    {
-      requestId: 6,
-      title: "Fashion Show",
-      type: "Fashion Event",
-      category: "Luxury",
-      clientName: "Elite Fashion House",
-      clientEmail: "booking@elitefashion.lb",
-      clientPhone: "+961 1 999 888",
-      date: "2026-03-25",
-      location: "ABC Mall - Upper Level",
-      nbOfHosts: 18,
-      dressCode: "All Black Chic",
-      description: "Spring collection runway show with backstage coordination, front row seating, and after-party management.",
-      budget: "$22,000",
-      status: "Rejected",
-      submittedDate: "2025-11-18",
-    },
-    {
-      requestId: 7,
-      title: "Corporate Team Building",
-      type: "Corporate Event",
-      category: "Corporate",
-      clientName: "Global Solutions Inc.",
-      clientEmail: "hr@globalsolutions.com",
-      clientPhone: "+961 70 444 555",
-      date: "2026-02-28",
-      location: "Faraya Mountain Resort",
-      nbOfHosts: 10,
-      dressCode: "Outdoor Casual",
-      description: "Full-day team building activities for 150 employees. Hosts needed for activity coordination, registration, and logistics support.",
-      budget: "$12,000",
-      status: "Pending",
-      submittedDate: "2025-11-25",
-    },
-    {
-      requestId: 8,
-      title: "Art Gallery Opening",
-      type: "Cultural Event",
-      category: "Luxury",
-      clientName: "Beirut Contemporary Art Gallery",
-      clientEmail: "info@bcag.lb",
-      clientPhone: "+961 1 777 666",
-      date: "2026-02-08",
-      location: "Gemmayzeh Art District",
-      nbOfHosts: 8,
-      dressCode: "Smart Casual/Artistic",
-      description: "Exclusive art exhibition opening with collectors and media. Need hosts for guest welcome, artwork information, and champagne service.",
-      budget: "$9,000",
-      status: "Approved",
-      submittedDate: "2025-11-17",
-    },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    const fetchRequests = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data } = await api.get("/admins/event-requests");
+        if (!cancelled) {
+          const hydrated = await hydrateRequests(data);
+          setRequests(hydrated);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.response?.data?.message || "Failed to load event requests");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetchRequests();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const categories = useMemo(() => {
-    const unique = Array.from(
-      new Set(eventRequests.map((req) => req.category).filter(Boolean))
-    );
+    const unique = Array.from(new Set(requests.map((req) => req.category).filter(Boolean)));
     return ["all", ...unique];
-  }, [eventRequests]);
+  }, [requests]);
 
   const filteredRequests = useMemo(() => {
-    if (activeFilter === "all") return eventRequests;
-    return eventRequests.filter((req) => req.category === activeFilter);
-  }, [activeFilter, eventRequests]);
+    if (activeFilter === "all") return requests;
+    return requests.filter((req) => req.category === activeFilter);
+  }, [activeFilter, requests]);
 
-  const pendingRequests = eventRequests.filter(req => req.status === "Pending");
-
-  const handleApprove = (requestId) => {
-    console.log(`Approved request: ${requestId}`);
-    // In production: API call to approve event request
+  const updateRequestStatus = (requestId, newStatus) => {
+    setRequests((prev) =>
+      prev.map((req) => (req.id === requestId ? { ...req, status: newStatus } : req))
+    );
   };
 
-  const handleReject = (requestId) => {
-    console.log(`Rejected request: ${requestId}`);
-    // In production: API call to reject event request
+  const handleApprove = async (requestId) => {
+    try {
+      await api.put(`/events/${requestId}`, { status: "accepted" });
+      updateRequestStatus(requestId, "Accepted");
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to approve event");
+    }
+  };
+
+  const handleReject = async (requestId) => {
+    try {
+      await api.put(`/events/${requestId}`, { status: "rejected" });
+      updateRequestStatus(requestId, "Rejected");
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to reject event");
+    }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
       case "Pending":
         return "text-yellow-600 bg-yellow-50 border-yellow-200";
-      case "Approved":
+      case "Accepted":
         return "text-green-600 bg-green-50 border-green-200";
       case "Rejected":
         return "text-red-600 bg-red-50 border-red-200";
@@ -212,107 +201,196 @@ export default function EventRequests() {
         </div>
       </section>
 
-      {/* Event Requests Grid */}
       <section className="px-4 pb-16">
         <div className="max-w-6xl mx-auto">
-          {filteredRequests.length === 0 ? (
+          {loading ? (
+            <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center text-gray-500">
+              Loading event requests...
+            </div>
+          ) : error ? (
+            <div className="bg-white rounded-3xl border border-red-100 p-12 text-center text-red-600">
+              {error}
+            </div>
+          ) : filteredRequests.length === 0 ? (
             <div className="bg-white rounded-3xl border border-dashed border-gray-200 p-12 text-center text-gray-500">
               No event requests match this filter.
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {filteredRequests.map((request) => (
-                <article
-                  key={request.requestId}
-                  className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition p-6 space-y-4"
-                >
-                  {/* Header */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-ocean font-semibold mb-2">
-                        <span>{request.category}</span>
+              {filteredRequests.map((request) => {
+                const isPending = request.status === "Pending";
+                return (
+                  <article
+                    key={request.id}
+                    className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition p-6 space-y-5"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-ocean font-semibold mb-2">
+                          <Calendar size={14} />
+                          <span>{request.category}</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900">{request.title}</h3>
+                        <p className="text-sm text-gray-500 mt-1">Requested on {request.submittedDate}</p>
                       </div>
-                      <h3 className="text-xl font-bold text-gray-900">
-                        {request.title}
-                      </h3>
-                      <p className="text-sm text-gray-500 mt-1">{request.type}</p>
-                    </div>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(
-                        request.status
-                      )}`}
-                    >
-                      {request.status}
-                    </span>
-                  </div>
-
-                  {/* Client Info */}
-                  <div className="bg-cream rounded-xl p-4 space-y-2">
-                    <p className="text-sm font-semibold text-gray-700">
-                      Client: {request.clientName}
-                    </p>
-                    <p className="text-sm text-gray-600">{request.clientEmail}</p>
-                    <p className="text-sm text-gray-600">{request.clientPhone}</p>
-                  </div>
-
-                  {/* Event Details */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <Calendar size={16} className="text-ocean" />
-                      <span className="font-medium">{request.date}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <MapPin size={16} className="text-ocean" />
-                      <span>{request.location}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <Users size={16} className="text-ocean" />
-                      <span>{request.nbOfHosts} hosts needed</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <Clock size={16} className="text-ocean" />
-                      <span>Submitted: {request.submittedDate}</span>
-                    </div>
-                  </div>
-
-                  {/* Description */}
-                  <p className="text-sm text-gray-600 line-clamp-3">
-                    {request.description}
-                  </p>
-
-                  {/* Additional Info */}
-                  <div className="flex items-center justify-between text-xs uppercase tracking-wide text-gray-500 pt-2 border-t border-gray-100">
-                    <span>Dress: {request.dressCode}</span>
-                    <span className="font-semibold text-ocean">
-                      Budget: {request.budget}
-                    </span>
-                  </div>
-
-                  {/* Action Buttons */}
-                  {request.status === "Pending" && (
-                    <div className="flex gap-3 pt-3">
-                      <button
-                        onClick={() => handleApprove(request.requestId)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition"
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(
+                          request.status
+                        )}`}
                       >
-                        <CheckCircle size={18} />
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleReject(request.requestId)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition"
-                      >
-                        <XCircle size={18} />
-                        Reject
-                      </button>
+                        {request.status}
+                      </span>
                     </div>
-                  )}
-                </article>
-              ))}
+
+                    <div className="bg-cream rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                        <User size={16} className="text-ocean" />
+                        <span>Client</span>
+                      </div>
+                      <p className="text-base font-semibold text-gray-900">{request.clientName}</p>
+                      <div className="flex flex-col gap-2 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                          <Mail size={16} className="text-ocean" />
+                          <span>{request.clientEmail}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Phone size={16} className="text-ocean" />
+                          <span>{request.clientPhone}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={16} className="text-ocean" />
+                        <span>{request.date}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MapPin size={16} className="text-ocean" />
+                        <span>{request.location}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Users size={16} className="text-ocean" />
+                        <span>{request.nbOfHosts} hosts</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Clock size={16} className="text-ocean" />
+                        <span>Type: {request.type}</span>
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-gray-600 leading-relaxed">{request.description}</p>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setDetailModal(request)}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full border border-gray-200 text-gray-700 font-semibold hover:border-ocean hover:text-ocean transition"
+                      >
+                        <Eye size={18} />
+                        View Details
+                      </button>
+                      <div className="flex flex-1 gap-3">
+                        <button
+                          type="button"
+                          disabled={!isPending}
+                          onClick={() => handleReject(request.id)}
+                          className={`flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full font-semibold transition ${
+                            isPending
+                              ? "text-red-600 border border-red-200 hover:bg-red-50"
+                              : "text-gray-400 border border-gray-100 bg-gray-50 cursor-not-allowed"
+                          }`}
+                        >
+                          <XCircle size={18} />
+                          Reject
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!isPending}
+                          onClick={() => handleApprove(request.id)}
+                          className={`flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full font-semibold transition ${
+                            isPending
+                              ? "text-white bg-ocean hover:bg-ocean/90"
+                              : "text-gray-400 bg-gray-100 cursor-not-allowed"
+                          }`}
+                        >
+                          <CheckCircle size={18} />
+                          Approve
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </div>
       </section>
+
+      {detailModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full relative p-6 space-y-5">
+            <button
+              type="button"
+              onClick={() => setDetailModal(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="flex items-start gap-4">
+              <div className="h-14 w-14 rounded-2xl bg-cream flex items-center justify-center text-ocean">
+                <Calendar size={28} />
+              </div>
+              <div>
+                <p className="text-sm uppercase tracking-[0.25em] text-ocean font-semibold">
+                  {detailModal.category}
+                </p>
+                <h3 className="text-2xl font-bold text-gray-900">{detailModal.title}</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {detailModal.type} • {detailModal.date}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <MapPin size={16} className="text-ocean" />
+                  <span>Location</span>
+                </div>
+                <p className="text-sm text-gray-600">{detailModal.location}</p>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Users size={16} className="text-ocean" />
+                  <span>{detailModal.nbOfHosts} hosts requested</span>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <User size={16} className="text-ocean" />
+                  <span>Client</span>
+                </div>
+                <p className="text-base font-semibold text-gray-900">{detailModal.clientName}</p>
+                <div className="flex flex-col gap-2 text-sm text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <Mail size={16} className="text-ocean" />
+                    <span>{detailModal.clientEmail}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Phone size={16} className="text-ocean" />
+                    <span>{detailModal.clientPhone}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
+              <p className="text-sm font-semibold text-gray-700">Event Brief</p>
+              <p className="text-sm text-gray-600 leading-relaxed">{detailModal.description}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

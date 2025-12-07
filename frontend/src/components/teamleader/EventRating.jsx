@@ -1,11 +1,14 @@
 import React, { useState } from "react";
 import { Star, Send, CheckCircle } from "lucide-react";
+import api from "../../services/api";
 
 export default function EventRating({ event }) {
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
   const ratingLabels = {
     1: "Poor",
@@ -30,19 +33,36 @@ export default function EventRating({ event }) {
     setCategoryRatings((prev) => ({ ...prev, [categoryId]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    const ratingData = {
-      eventId: event.eventId,
-      overallRating: rating,
-      categoryRatings,
-      feedback,
-      submittedAt: new Date().toISOString(),
-    };
-    
-    console.log("Event Rating Submitted:", ratingData);
-    setSubmitted(true);
+    if (!event?.eventId) return;
+
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      const categorySummary = categories
+        .map((cat) => `${cat.label}: ${categoryRatings[cat.id] || "N/A"}/5`)
+        .join(" | ");
+
+      const contentPieces = [
+        `Overall feedback: ${feedback || "No additional comments."}`,
+        categorySummary,
+      ];
+
+      await api.post("/review", {
+        eventId: event.eventId,
+        starRating: rating,
+        content: contentPieces.join("\n"),
+        visibility: true,
+      });
+
+      setSubmitted(true);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to submit rating");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -152,13 +172,19 @@ export default function EventRating({ event }) {
         </div>
 
         {/* Submit Button */}
+        {error && (
+          <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+            {error}
+          </p>
+        )}
+
         <button
           type="submit"
-          disabled={rating === 0}
+          disabled={rating === 0 || submitting}
           className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-ocean text-white font-semibold hover:bg-ocean/80 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Send size={18} />
-          Submit Rating
+          {submitting ? "Submitting..." : "Submit Rating"}
         </button>
       </form>
     </div>

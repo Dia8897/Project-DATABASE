@@ -1,109 +1,131 @@
-import React, { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
-import { User, CheckCircle, XCircle, Mail, Phone, Award, Languages, Eye } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { User, CheckCircle, XCircle, Mail, Phone, Award, Languages, Eye, X } from "lucide-react";
+import api from "../../services/api";
+
+const FALLBACK_DESCRIPTION = "No additional notes provided.";
+const HYDRATION_FIELDS = ["applicantFirstName", "applicantLastName", "applicantEmail", "applicantPhone"];
+
+const formatDate = (value) => {
+  if (!value) return "TBA";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const titleCase = (value = "") =>
+  value
+    .split(/[\s_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+const normalizeApplication = (app) => {
+  const firstName = app.applicantFirstName ?? app.fName;
+  const lastName = app.applicantLastName ?? app.lName;
+  const name = [firstName, lastName].filter(Boolean).join(" ").trim();
+
+  return {
+    id: app.eventAppId,
+    userId: app.applicantUserId ?? app.senderId,
+    name: name || `Applicant #${app.senderId}`,
+    email: app.applicantEmail ?? app.email ?? "Email unavailable",
+    phone: app.applicantPhone ?? app.phoneNb ?? "Phone unavailable",
+    role: titleCase(app.requestedRole || "host"),
+    status: titleCase(app.status || "pending"),
+    clothingSize: app.applicantClothingSize ?? "N/A",
+    appliedDate: formatDate(app.sentAt),
+    description: app.notes || app.applicantDescription || FALLBACK_DESCRIPTION,
+    requestedRole: app.requestedRole,
+  };
+};
+
+const needsProfileHydration = (rawApp = {}) =>
+  HYDRATION_FIELDS.some((field) => !rawApp[field]);
+
+const hydrateApplications = async (rawApps) => {
+  const normalized = rawApps.map(normalizeApplication);
+  const userIdsToHydrate = Array.from(
+    new Set(
+      rawApps
+        .filter((raw) => needsProfileHydration(raw) && raw.senderId)
+        .map((raw) => raw.senderId)
+    )
+  );
+
+  if (!userIdsToHydrate.length) {
+    return normalized;
+  }
+
+  const profileResults = await Promise.allSettled(
+    userIdsToHydrate.map((userId) => api.get(`/users/${userId}`))
+  );
+
+  const profileMap = new Map();
+  profileResults.forEach((result, index) => {
+    if (result.status === "fulfilled" && result.value?.data) {
+      profileMap.set(userIdsToHydrate[index], result.value.data);
+    }
+  });
+
+  if (!profileMap.size) {
+    return normalized;
+  }
+
+  return normalized.map((app) => {
+    const profile = profileMap.get(app.userId);
+    if (!profile) return app;
+    const profileName = [profile.fName, profile.lName].filter(Boolean).join(" ").trim();
+    const enrichedDescription =
+      app.description && app.description !== FALLBACK_DESCRIPTION
+        ? app.description
+        : profile.description || app.description;
+
+    return {
+      ...app,
+      name: profileName || app.name,
+      email: profile.email || app.email,
+      phone: profile.phoneNb || app.phone,
+      clothingSize: profile.clothingSize || app.clothingSize,
+      description: enrichedDescription,
+    };
+  });
+};
 
 export default function HostApplications() {
   const [activeFilter, setActiveFilter] = useState("all");
+  const [applicants, setApplicants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [profileModal, setProfileModal] = useState(null);
 
-  // Sample applicant data with more details
-  const applicants = [
-    {
-      applicationId: 1,
-      name: "Alice Johnson",
-      email: "alice@example.com",
-      phone: "+961 70 123 456",
-      role: "Host",
-      status: "Pending",
-      experience: "3 years",
-      languages: ["English", "French"],
-      appliedDate: "2025-11-25",
-      description: "Experienced host with luxury hotel background. Worked at Four Seasons for 2 years.",
-    },
-    {
-      applicationId: 2,
-      name: "Bob Smith",
-      email: "bob@example.com",
-      phone: "+961 71 234 567",
-      role: "Host",
-      status: "Pending",
-      experience: "2 years",
-      languages: ["English", "Arabic"],
-      appliedDate: "2025-11-24",
-      description: "Corporate event specialist with strong communication skills.",
-    },
-    {
-      applicationId: 3,
-      name: "Charlie Lee",
-      email: "charlie@example.com",
-      phone: "+961 3 345 678",
-      role: "Team Leader",
-      status: "Pending",
-      experience: "5 years",
-      languages: ["English", "French", "Arabic"],
-      appliedDate: "2025-11-26",
-      description: "Senior host with leadership experience. Managed teams at international events.",
-    },
-    {
-      applicationId: 4,
-      name: "Dana White",
-      email: "dana@example.com",
-      phone: "+961 76 456 789",
-      role: "Host",
-      status: "Accepted",
-      experience: "4 years",
-      languages: ["English", "Spanish"],
-      appliedDate: "2025-11-20",
-      description: "Professional hostess with VIP event experience.",
-    },
-    {
-      applicationId: 5,
-      name: "Emma Brown",
-      email: "emma.brown@email.com",
-      phone: "+961 70 567 890",
-      role: "Team Leader",
-      status: "Pending",
-      experience: "6 years",
-      languages: ["English", "French", "German"],
-      appliedDate: "2025-11-27",
-      description: "Multilingual team leader with extensive luxury event portfolio.",
-    },
-    {
-      applicationId: 6,
-      name: "Frank Miller",
-      email: "frank.m@email.com",
-      phone: "+961 3 678 901",
-      role: "Host",
-      status: "Rejected",
-      experience: "1 year",
-      languages: ["English"],
-      appliedDate: "2025-11-18",
-      description: "Entry-level host seeking opportunities.",
-    },
-    {
-      applicationId: 7,
-      name: "Grace Chen",
-      email: "grace.chen@email.com",
-      phone: "+961 71 789 012",
-      role: "Host",
-      status: "Pending",
-      experience: "3 years",
-      languages: ["English", "Mandarin", "French"],
-      appliedDate: "2025-11-26",
-      description: "Bilingual host with experience in fashion and corporate events.",
-    },
-    {
-      applicationId: 8,
-      name: "Hassan Khalil",
-      email: "hassan.k@email.com",
-      phone: "+961 70 890 123",
-      role: "Team Leader",
-      status: "Accepted",
-      experience: "7 years",
-      languages: ["English", "Arabic", "French"],
-      appliedDate: "2025-11-15",
-      description: "Experienced team coordinator with proven track record in large-scale events.",
-    },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    const fetchApplications = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data } = await api.get("/applications");
+        if (!cancelled) {
+          const hydrated = await hydrateApplications(data);
+          setApplicants(hydrated);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.response?.data?.message || "Failed to load applications");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetchApplications();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const statusFilters = ["all", "Pending", "Accepted", "Rejected"];
 
@@ -112,14 +134,31 @@ export default function HostApplications() {
     return applicants.filter((app) => app.status === activeFilter);
   }, [activeFilter, applicants]);
 
-  const handleAccept = (applicationId) => {
-    console.log(`Accepted application: ${applicationId}`);
-    // In production: API call to accept application
+  const updateStatus = (applicationId, status) => {
+    setApplicants((prev) =>
+      prev.map((app) => (app.id === applicationId ? { ...app, status } : app))
+    );
   };
 
-  const handleReject = (applicationId) => {
-    console.log(`Rejected application: ${applicationId}`);
-    // In production: API call to reject application
+  const handleAccept = async (applicationId, requestedRole) => {
+    try {
+      await api.put(`/applications/${applicationId}`, {
+        status: "accepted",
+        assignedRole: requestedRole,
+      });
+      updateStatus(applicationId, "Accepted");
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to accept application");
+    }
+  };
+
+  const handleReject = async (applicationId) => {
+    try {
+      await api.put(`/applications/${applicationId}`, { status: "rejected" });
+      updateStatus(applicationId, "Rejected");
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to reject application");
+    }
   };
 
   const getStatusColor = (status) => {
@@ -137,16 +176,13 @@ export default function HostApplications() {
 
   return (
     <div className="space-y-8">
-      {/* Filter Section */}
       <section className="px-4">
         <div className="max-w-6xl mx-auto bg-white rounded-3xl shadow p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">
               Filter applications
             </p>
-            <h3 className="text-lg font-semibold text-gray-900">
-              Browse by status
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-900">Browse by status</h3>
           </div>
           <div className="flex flex-wrap gap-2">
             {statusFilters.map((filter) => (
@@ -166,112 +202,192 @@ export default function HostApplications() {
         </div>
       </section>
 
-      {/* Applications Grid */}
       <section className="px-4 pb-16">
         <div className="max-w-6xl mx-auto">
-          {filteredApplicants.length === 0 ? (
+          {loading ? (
+            <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center text-gray-500">
+              Loading applications...
+            </div>
+          ) : error ? (
+            <div className="bg-white rounded-3xl border border-red-100 p-12 text-center text-red-600">
+              {error}
+            </div>
+          ) : filteredApplicants.length === 0 ? (
             <div className="bg-white rounded-3xl border border-dashed border-gray-200 p-12 text-center text-gray-500">
               No applications match this filter.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredApplicants.map((applicant) => (
-                <article
-                  key={applicant.applicationId}
-                  className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition p-6 space-y-4"
-                >
-                  {/* Header with Avatar and Status */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-full bg-sky text-ocean flex items-center justify-center flex-shrink-0">
-                        <User size={24} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-bold text-gray-900 truncate">
-                          {applicant.name}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          {applicant.role}
-                        </p>
-                      </div>
-                    </div>
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${getStatusColor(
-                        applicant.status
-                      )}`}
-                    >
-                      {applicant.status}
-                    </span>
-                  </div>
-
-                  {/* Contact Info */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Mail size={14} className="text-ocean flex-shrink-0" />
-                      <span className="truncate">{applicant.email}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Phone size={14} className="text-ocean flex-shrink-0" />
-                      <span>{applicant.phone}</span>
-                    </div>
-                  </div>
-
-                  {/* Experience and Languages */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <Award size={14} className="text-ocean flex-shrink-0" />
-                      <span className="font-medium">Experience: {applicant.experience}</span>
-                    </div>
-                    <div className="flex items-start gap-2 text-sm text-gray-700">
-                      <Languages size={14} className="text-ocean flex-shrink-0 mt-0.5" />
-                      <span className="flex-1">{applicant.languages.join(", ")}</span>
-                    </div>
-                  </div>
-
-                  {/* Description */}
-                  <p className="text-sm text-gray-600 line-clamp-3 pt-2 border-t border-gray-100">
-                    {applicant.description}
-                  </p>
-
-                  {/* Applied Date */}
-                  <p className="text-xs text-gray-500">
-                    Applied: {applicant.appliedDate}
-                  </p>
-
-                  {/* View Profile Button */}
-                  <Link
-                    to={`/profile/${applicant.applicationId}`}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-ocean text-ocean text-sm font-semibold hover:bg-sky transition"
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {filteredApplicants.map((app) => {
+                const isPending = app.status === "Pending";
+                return (
+                  <article
+                    key={app.id}
+                    className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition p-6 space-y-5"
                   >
-                    <Eye size={16} />
-                    View Profile
-                  </Link>
-
-                  {/* Action Buttons */}
-                  {applicant.status === "Pending" && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleAccept(applicant.applicationId)}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition"
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-ocean font-semibold mb-2">
+                          <User size={14} />
+                          <span>{app.role}</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900">{app.name}</h3>
+                        <p className="text-sm text-gray-500 mt-1">Applied on {app.appliedDate}</p>
+                      </div>
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(
+                          app.status
+                        )}`}
                       >
-                        <CheckCircle size={16} />
-                        Accept
-                      </button>
-                      <button
-                        onClick={() => handleReject(applicant.applicationId)}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition"
-                      >
-                        <XCircle size={16} />
-                        Reject
-                      </button>
+                        {app.status}
+                      </span>
                     </div>
-                  )}
-                </article>
-              ))}
+
+                    <div className="space-y-4">
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-start gap-3 text-gray-700">
+                          <Mail size={18} className="text-ocean" />
+                          <div>
+                            <p className="text-xs uppercase text-gray-400 tracking-widest">Email</p>
+                            <p className="font-medium">{app.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3 text-gray-700">
+                          <Phone size={18} className="text-ocean" />
+                          <div>
+                            <p className="text-xs uppercase text-gray-400 tracking-widest">Phone</p>
+                            <p className="font-medium">{app.phone}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-cream rounded-2xl p-4 space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                          <Award size={16} className="text-ocean" />
+                          <span>Experience</span>
+                        </div>
+                        <p className="text-sm text-gray-600 leading-relaxed">{app.description}</p>
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-gray-200 text-gray-700 font-medium">
+                            Size: {app.clothingSize}
+                          </span>
+                          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-gray-200 text-gray-700 font-medium">
+                            <Languages size={16} className="text-ocean" />
+                            Languages coming soon
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setProfileModal(app)}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full border border-gray-200 text-gray-700 font-semibold hover:border-ocean hover:text-ocean transition"
+                      >
+                        <Eye size={18} />
+                        View Profile
+                      </button>
+                      <div className="flex flex-1 gap-3">
+                        <button
+                          type="button"
+                          disabled={!isPending}
+                          onClick={() => handleReject(app.id)}
+                          className={`flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full font-semibold transition ${
+                            isPending
+                              ? "text-red-600 border border-red-200 hover:bg-red-50"
+                              : "text-gray-400 border border-gray-100 bg-gray-50 cursor-not-allowed"
+                          }`}
+                        >
+                          <XCircle size={18} />
+                          Reject
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!isPending}
+                          onClick={() => handleAccept(app.id, app.requestedRole)}
+                          className={`flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full font-semibold transition ${
+                            isPending
+                              ? "text-white bg-ocean hover:bg-ocean/90"
+                              : "text-gray-400 bg-gray-100 cursor-not-allowed"
+                          }`}
+                        >
+                          <CheckCircle size={18} />
+                          Accept
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </div>
       </section>
+
+      {profileModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full relative p-6 space-y-5">
+            <button
+              type="button"
+              onClick={() => setProfileModal(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X size={20} />
+            </button>
+            <div className="flex items-center gap-4">
+              <div className="h-14 w-14 rounded-2xl bg-cream flex items-center justify-center text-ocean">
+                <User size={28} />
+              </div>
+              <div>
+                <p className="text-sm uppercase tracking-[0.25em] text-ocean font-semibold">
+                  {profileModal.role}
+                </p>
+                <h3 className="text-2xl font-bold text-gray-900">{profileModal.name}</h3>
+                <p className="text-sm text-gray-500 mt-1">Applied on {profileModal.appliedDate}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
+                <div className="flex items-start gap-3 text-gray-700">
+                  <Mail size={18} className="text-ocean" />
+                  <div>
+                    <p className="text-xs uppercase text-gray-400 tracking-widest">Email</p>
+                    <p className="font-semibold">{profileModal.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 text-gray-700">
+                  <Phone size={18} className="text-ocean" />
+                  <div>
+                    <p className="text-xs uppercase text-gray-400 tracking-widest">Phone</p>
+                    <p className="font-semibold">{profileModal.phone}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <Award size={16} className="text-ocean" />
+                  <span>Notes & Experience</span>
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  {profileModal.description}
+                </p>
+                <div className="flex flex-wrap gap-2 text-sm text-gray-600">
+                  <span className="px-3 py-1 rounded-full bg-cream text-gray-800 font-semibold">
+                    Clothing Size: {profileModal.clothingSize}
+                  </span>
+                  <span className="px-3 py-1 rounded-full bg-cream text-gray-800 font-semibold inline-flex items-center gap-2">
+                    <Languages size={16} className="text-ocean" />
+                    Languages coming soon
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
