@@ -97,6 +97,11 @@ export default function EventRequests() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [detailModal, setDetailModal] = useState(null);
+  const [eventApplications, setEventApplications] = useState([]);
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
+  const [conflictModal, setConflictModal] = useState(null);
+
+
 
   useEffect(() => {
     let cancelled = false;
@@ -104,7 +109,8 @@ export default function EventRequests() {
       setLoading(true);
       setError(null);
       try {
-        const { data } = await api.get("/admins/event-requests");
+        const params = activeFilter === "all" ? {} : { status: activeFilter };
+        const { data } = await api.get("/admins/event-requests", { params });
         if (!cancelled) {
           const hydrated = await hydrateRequests(data);
           setRequests(hydrated);
@@ -121,17 +127,11 @@ export default function EventRequests() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeFilter]);
 
-  const categories = useMemo(() => {
-    const unique = Array.from(new Set(requests.map((req) => req.category).filter(Boolean)));
-    return ["all", ...unique];
-  }, [requests]);
+  const statusFilters = ["all", "pending", "accepted", "rejected"];
 
-  const filteredRequests = useMemo(() => {
-    if (activeFilter === "all") return requests;
-    return requests.filter((req) => req.category === activeFilter);
-  }, [activeFilter, requests]);
+  const filteredRequests = requests; // No client-side filtering needed since API does it
 
   const updateRequestStatus = (requestId, newStatus) => {
     setRequests((prev) =>
@@ -170,6 +170,71 @@ export default function EventRequests() {
     }
   };
 
+  const openDetailModal = async (request) => {
+    setDetailModal(request);
+    setApplicationsLoading(true);
+    try {
+      const { data } = await api.get(`/applications/event/${request.id}`);
+      setEventApplications(data);
+    } catch (err) {
+      console.error("Failed to fetch applications:", err);
+      setEventApplications([]);
+    } finally {
+      setApplicationsLoading(false);
+    }
+  };
+
+  const handleAcceptApplication = async (applicationId, requestedRole) => {
+    try {
+      await api.put(`/applications/${applicationId}`, {
+        status: "accepted",
+        assignedRole: requestedRole,
+      });
+      // Update local state
+      setEventApplications(prev =>
+        prev.map(app =>
+          app.eventAppId === applicationId
+            ? { ...app, status: "accepted", assignedRole: requestedRole }
+            : app
+        )
+      );
+    } catch (err) {
+      // Check for scheduling conflict (409)
+      if (err.response?.status === 409) {
+        // Show scheduling conflict modal instead of alert
+        const message = err.response.data?.message || "Cannot accept application due to scheduling conflict";
+        const conflicts = err.response.data?.conflicts || "Scheduling conflict detected";
+
+        setConflictModal({
+          message,
+          conflicts: typeof conflicts === 'string' ? conflicts : JSON.stringify(conflicts),
+          applicationId,
+          requestedRole
+        });
+        return; // Don't show alert
+      }
+
+      // For other errors, show alert
+      alert(err.response?.data?.message || "Failed to accept application");
+    }
+  };
+
+  const handleRejectApplication = async (applicationId) => {
+    try {
+      await api.put(`/applications/${applicationId}`, { status: "rejected" });
+      // Update local state
+      setEventApplications(prev =>
+        prev.map(app =>
+          app.eventAppId === applicationId
+            ? { ...app, status: "rejected" }
+            : app
+        )
+      );
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to reject application");
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Filter Section */}
@@ -177,14 +242,14 @@ export default function EventRequests() {
         <div className="max-w-6xl mx-auto bg-white rounded-3xl shadow p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">
-              Filter requests
+              Filter events
             </p>
             <h3 className="text-lg font-semibold text-gray-900">
-              Browse by category
+              Browse by status
             </h3>
           </div>
           <div className="flex flex-wrap gap-2">
-            {categories.map((filter) => (
+            {statusFilters.map((filter) => (
               <button
                 key={filter}
                 onClick={() => setActiveFilter(filter)}
@@ -194,9 +259,10 @@ export default function EventRequests() {
                     : "bg-cream text-gray-700 hover:bg-mist"
                 }`}
               >
-                {filter === "all" ? "All Events" : filter}
+                {filter === "all" ? "All Events" : filter.charAt(0).toUpperCase() + filter.slice(1)}
               </button>
             ))}
+
           </div>
         </div>
       </section>
@@ -284,7 +350,7 @@ export default function EventRequests() {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
                       <button
                         type="button"
-                        onClick={() => setDetailModal(request)}
+                        onClick={() => openDetailModal(request)}
                         className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full border border-gray-200 text-gray-700 font-semibold hover:border-ocean hover:text-ocean transition"
                       >
                         <Eye size={18} />
@@ -329,68 +395,217 @@ export default function EventRequests() {
 
       {detailModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full relative p-6 space-y-5">
-            <button
-              type="button"
-              onClick={() => setDetailModal(null)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-            >
-              <X size={20} />
-            </button>
-
-            <div className="flex items-start gap-4">
-              <div className="h-14 w-14 rounded-2xl bg-cream flex items-center justify-center text-ocean">
-                <Calendar size={28} />
+          <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] relative flex flex-col">
+            {/* Fixed Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-2xl bg-cream flex items-center justify-center text-ocean">
+                  <Calendar size={24} />
+                </div>
+                <div>
+                  <p className="text-sm uppercase tracking-[0.25em] text-ocean font-semibold">
+                    {detailModal.category}
+                  </p>
+                  <h3 className="text-lg font-bold text-gray-900">{detailModal.title}</h3>
+                </div>
               </div>
-              <div>
-                <p className="text-sm uppercase tracking-[0.25em] text-ocean font-semibold">
-                  {detailModal.category}
-                </p>
-                <h3 className="text-2xl font-bold text-gray-900">{detailModal.title}</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  {detailModal.type} • {detailModal.date}
-                </p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setDetailModal(null)}
+                className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition"
+              >
+                <X size={24} />
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <MapPin size={16} className="text-ocean" />
-                  <span>Location</span>
-                </div>
-                <p className="text-sm text-gray-600">{detailModal.location}</p>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Users size={16} className="text-ocean" />
-                  <span>{detailModal.nbOfHosts} hosts requested</span>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <User size={16} className="text-ocean" />
-                  <span>Client</span>
-                </div>
-                <p className="text-base font-semibold text-gray-900">{detailModal.clientName}</p>
-                <div className="flex flex-col gap-2 text-sm text-gray-600">
-                  <div className="flex items-center gap-2">
-                    <Mail size={16} className="text-ocean" />
-                    <span>{detailModal.clientEmail}</span>
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Event Info Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <MapPin size={16} className="text-ocean" />
+                    <span>Location</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Phone size={16} className="text-ocean" />
-                    <span>{detailModal.clientPhone}</span>
+                  <p className="text-sm text-gray-600">{detailModal.location}</p>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Users size={16} className="text-ocean" />
+                    <span>{detailModal.nbOfHosts} hosts requested</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Clock size={16} className="text-ocean" />
+                    <span>{detailModal.date}</span>
                   </div>
                 </div>
+                <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <User size={16} className="text-ocean" />
+                    <span>Client</span>
+                  </div>
+                  <p className="text-base font-semibold text-gray-900">{detailModal.clientName}</p>
+                  <div className="flex flex-col gap-2 text-sm text-gray-600">
+                    <div className="flex items-center gap-2">
+                      <Mail size={16} className="text-ocean" />
+                      <span>{detailModal.clientEmail}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Phone size={16} className="text-ocean" />
+                      <span>{detailModal.clientPhone}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
-              <p className="text-sm font-semibold text-gray-700">Event Brief</p>
-              <p className="text-sm text-gray-600 leading-relaxed">{detailModal.description}</p>
+              {/* Event Description */}
+              <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
+                <p className="text-sm font-semibold text-gray-700">Event Brief</p>
+                <p className="text-sm text-gray-600 leading-relaxed">{detailModal.description}</p>
+                <p className="text-xs text-gray-500">Event Type: {detailModal.type}</p>
+              </div>
+
+              {/* Applications Section - Only show for accepted events */}
+              {detailModal.status === "Accepted" && (
+                <div className="rounded-2xl border border-gray-100 p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-gray-700">Host Applications</p>
+                    {applicationsLoading && (
+                      <p className="text-xs text-gray-500">Loading applications...</p>
+                    )}
+                  </div>
+
+                  {eventApplications.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-8">
+                      {applicationsLoading ? "Loading..." : "No applications yet"}
+                    </p>
+                  ) : (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {eventApplications.map((app) => {
+                        const isPending = app.status === "pending";
+                        return (
+                          <div key={app.eventAppId} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {app.fName} {app.lName}
+                                </p>
+                                <p className="text-xs text-gray-600">
+                                  Applied for: {app.requestedRole?.replace('_', ' ')}
+                                </p>
+                                {app.notes && (
+                                  <p className="text-xs text-gray-600 italic mt-1">"{app.notes}"</p>
+                                )}
+                              </div>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ml-3 ${
+                                app.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                                app.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {app.status || 'pending'}
+                              </span>
+                            </div>
+
+                            {isPending && (
+                              <div className="flex gap-2 pt-2 border-t border-gray-100">
+                                <button
+                                  onClick={() => handleRejectApplication(app.eventAppId)}
+                                  className="flex-1 px-4 py-2 text-sm bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition font-medium"
+                                >
+                                  Reject
+                                </button>
+                                <AcceptWithRoleButton
+                                  application={app}
+                                  onAccept={handleAcceptApplication}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Status message for non-accepted events */}
+              {detailModal.status !== "Accepted" && (
+                <div className="rounded-2xl border border-gray-100 p-4 space-y-4">
+                  <div className="text-center py-8">
+                    <div className="text-4xl mb-4">
+                      {detailModal.status === "Pending" ? "⏳" : "❌"}
+                    </div>
+                    <p className="text-sm font-semibold text-gray-700 mb-2">
+                      {detailModal.status === "Pending"
+                        ? "Event is Pending Approval"
+                        : "Event was Rejected"
+                      }
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {detailModal.status === "Pending"
+                        ? "Host applications will be available once the event is approved."
+                        : "Rejected events do not have host applications."
+                      }
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
+
+      {/* Scheduling Conflict Modal */}
+      {conflictModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 space-y-5 relative">
+            <button
+              type="button"
+              onClick={() => setConflictModal(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition"
+            >
+              <X size={24} />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-2xl bg-red-100 flex items-center justify-center text-red-600 text-2xl">
+                ⚠️
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Scheduling Conflict</h3>
+                <p className="text-sm text-gray-600">Cannot accept this application</p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-semibold text-red-800">{conflictModal.message}</p>
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-red-700 uppercase tracking-wide">Conflicting Events:</p>
+                <div className="text-sm text-red-600 space-y-1">
+                  {typeof conflictModal.conflicts === 'string'
+                    ? conflictModal.conflicts.split(', ').map((conflict, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                          <span>{conflict}</span>
+                        </div>
+                      ))
+                    : <span>{JSON.stringify(conflictModal.conflicts)}</span>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setConflictModal(null)}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
     </div>
   );
 }

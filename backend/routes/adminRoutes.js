@@ -6,9 +6,18 @@ import { verifyToken, isAdmin } from "../middleware/auth.js";
 
 const router = Router();
 
-// GET all event requests with client information
+// GET all event requests with client information (with optional status filter)
 router.get("/event-requests", verifyToken, isAdmin, async (req, res) => {
   try {
+    const { status } = req.query;
+    let whereClause = "";
+    let params = [];
+
+    if (status && status !== 'all') {
+      whereClause = "WHERE e.status = ?";
+      params.push(status);
+    }
+
     const [rows] = await db.query(
       `SELECT e.*,
               c.fName AS clientFirstName,
@@ -17,8 +26,9 @@ router.get("/event-requests", verifyToken, isAdmin, async (req, res) => {
               c.phoneNb AS clientPhone
          FROM EVENTS e
     LEFT JOIN CLIENTS c ON c.clientId = e.clientId
-        WHERE e.status = 'pending'
-        ORDER BY e.createdAt DESC`
+        ${whereClause}
+        ORDER BY e.createdAt DESC`,
+      params
     );
     res.json(rows);
   } catch (err) {
@@ -359,22 +369,22 @@ router.put("/host-applications/:id/approve", verifyToken, isAdmin, async (req, r
 });
 
 // Reject host application
-router.put("/host-applications/:id/reject", verifyToken, isAdmin, async (req, res) => {
-  const { id } = req.params;
-  try {
-    const [result] = await db.query(
-      "UPDATE EVENT_APP SET status = 'rejected', adminId = ?, decidedAt = NOW() WHERE eventAppId = ? AND status = 'pending'",
-      [req.user.id, id]
-    );
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Application not found or already processed" });
-    }
-    res.json({ message: "Application rejected" });
-  } catch (err) {
-    console.error("Failed to reject application", err);
-    res.status(500).json({ message: "Failed to reject application" });
-  }
-});
+// router.put("/host-applications/:id/reject", verifyToken, isAdmin, async (req, res) => {
+//   const { id } = req.params;
+//   try {
+//     const [result] = await db.query(
+//       "UPDATE EVENT_APP SET status = 'rejected', adminId = ?, decidedAt = NOW() WHERE eventAppId = ? AND status = 'pending'",
+//       [req.user.id, id]
+//     );
+//     if (result.affectedRows === 0) {
+//       return res.status(404).json({ message: "Application not found or already processed" });
+//     }
+//     res.json({ message: "Application rejected" });
+//   } catch (err) {
+//     console.error("Failed to reject application", err);
+//     res.status(500).json({ message: "Failed to reject application" });
+//   }
+// });
 
 // GET admin stats
 router.get("/stats", verifyToken, isAdmin, async (req, res) => {
