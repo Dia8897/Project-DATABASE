@@ -20,33 +20,24 @@ export default function AdminStats() {
       setLoading(true);
       setError(null);
       try {
-        const [pendingRes, applicationsRes, approvedRes, hostsRes] = await Promise.all([
-          api.get("/admins/event-requests"),
-          api.get("/applications"),
-          api.get("/events"),
-          api.get("/users"),
-        ]);
+        // Use the dedicated admin stats endpoint instead of multiple separate calls
+        const response = await api.get("/admins/stats");
 
         if (cancelled) return;
 
-        const pendingCount = Array.isArray(pendingRes.data) ? pendingRes.data.length : 0;
-        const applicationsCount = Array.isArray(applicationsRes.data) ? applicationsRes.data.length : 0;
-        const approvedEventsCount = Array.isArray(approvedRes.data) ? approvedRes.data.length : 0;
-        const activeHostsCount = Array.isArray(hostsRes.data)
-          ? hostsRes.data.filter((host) => host.eligibility === "approved").length
-          : 0;
+        const { pendingRequests, totalApplications, approvedEvents, activeHosts } = response.data;
 
         setStats((prev) =>
           prev.map((stat) => {
             switch (stat.key) {
               case "pendingRequests":
-                return { ...stat, value: pendingCount };
+                return { ...stat, value: pendingRequests || 0 };
               case "applications":
-                return { ...stat, value: applicationsCount };
+                return { ...stat, value: totalApplications || 0 };
               case "approvedEvents":
-                return { ...stat, value: approvedEventsCount };
+                return { ...stat, value: approvedEvents || 0 };
               case "activeHosts":
-                return { ...stat, value: activeHostsCount };
+                return { ...stat, value: activeHosts || 0 };
               default:
                 return stat;
             }
@@ -90,7 +81,7 @@ export default function AdminStats() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4">
-            {statsDisplay.map((stat) => (
+            {stats.map((stat) => (
               <div
                 key={stat.label}
                 className="rounded-2xl border border-gray-100 bg-cream px-4 py-5 text-center hover:shadow-md transition"

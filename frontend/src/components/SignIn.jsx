@@ -29,12 +29,13 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
     e.preventDefault();
     try {
       const apiRole = activeRole === "host" ? "user" : activeRole; // Map host to backend role
+      const frontendRole = activeRole === "host" ? "user" : activeRole; // Map host to user for frontend consistency
       const response = await api.post('/auth/login', { email: formData.email, password: formData.password, role: apiRole });
 
-      const storedUser = { ...response.data.user, role: activeRole };
+      const storedUser = { ...response.data.user, role: frontendRole };
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(storedUser));
-      localStorage.setItem('userRole', activeRole);
+      localStorage.setItem('role', frontendRole);
       window.dispatchEvent(new Event(AUTH_EVENT));
 
       onClose();

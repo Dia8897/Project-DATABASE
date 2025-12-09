@@ -184,7 +184,7 @@ export default function EventRequests() {
             </h3>
           </div>
           <div className="flex flex-wrap gap-2">
-            {statusFilters.map((filter) => (
+            {categories.map((filter) => (
               <button
                 key={filter}
                 onClick={() => setActiveFilter(filter)}
