@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import EventsPage from "./Pages/EventsPage";
 import HomePage from "./Pages/HomePage";
 import AdminPage from "./Pages/AdminPage";
+import AdminProfilePage from "./Pages/AdminProfilePage";
 import ClientPage from "./Pages/ClientPage";
 import HostProfilePage from "./Pages/HostProfilePage";
 import TeamLeaderEventPage from "./Pages/TeamLeaderEventPage";
@@ -37,6 +38,14 @@ function App() {
           element={
             <RequireRole role="admin">
               <AdminPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/profile"
+          element={
+            <RequireRole role="admin">
+              <AdminProfilePage />
             </RequireRole>
           }
         />

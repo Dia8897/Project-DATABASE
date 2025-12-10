@@ -57,6 +57,19 @@ export default function HostProfilePage() {
   const [error, setError] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [checkedUser, setCheckedUser] = useState(false);
+  const [profilePicUrl, setProfilePicUrl] = useState("");
+  const [profilePicError, setProfilePicError] = useState("");
+  const [profilePicSuccess, setProfilePicSuccess] = useState("");
+  const [savingProfilePic, setSavingProfilePic] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [availableTrainings, setAvailableTrainings] = useState([]);
+  const [applyMessage, setApplyMessage] = useState("");
+  const [applyError, setApplyError] = useState("");
+  const [applyingId, setApplyingId] = useState(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
@@ -70,15 +83,23 @@ export default function HostProfilePage() {
     setCheckedUser(true);
   }, []);
 
+  const resolveUserId = () => hostId || currentUser?.userId || currentUser?.id;
+
   useEffect(() => {
     if (!checkedUser) return;
-    const resolvedId = hostId || currentUser?.userId;
+    const resolvedId = resolveUserId();
+    if (!resolvedId) return;
 
-    if (!resolvedId) {
-      setLoading(false);
-      setError("Please sign in to view this profile.");
-      return;
-    }
+    // Load available trainings list (global)
+    const loadTrainings = async () => {
+      try {
+        const { data } = await api.get("/trainings");
+        setAvailableTrainings(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.warn("Failed to load trainings", err);
+      }
+    };
+    loadTrainings();
 
     const fetchOverview = async () => {
       setLoading(true);
@@ -89,8 +110,8 @@ export default function HostProfilePage() {
         setProfile({
           ...data.profile,
           profileImage: data.profile.profilePic || null,
-          // DB does not yet store spokenLanguages or yearsOfExperience; consider adding columns later.
         });
+        setProfilePicUrl(data.profile.profilePic || "");
 
         setAppliedEvents(
           data.appliedEvents.map((event) => ({
@@ -124,7 +145,7 @@ export default function HostProfilePage() {
             date: formatDate(training.date),
             duration: buildTrainingDuration(training.startTime, training.endTime),
             status: buildTrainingStatus(training.date),
-            certificate: false, // Certificates are not tracked in the DB yet.
+            certificate: false,
           }))
         );
 
@@ -140,6 +161,15 @@ export default function HostProfilePage() {
                 : "N/A",
           }))
         );
+
+        if (!hostId && currentUser) {
+          const updatedUser = {
+            ...currentUser,
+            profilePic: data.profile.profilePic || currentUser.profilePic,
+          };
+          setCurrentUser(updatedUser);
+          localStorage.setItem("user", JSON.stringify(updatedUser));
+        }
       } catch (err) {
         const message = err.response?.data?.message || "Failed to load profile";
         setError(message);
@@ -149,14 +179,112 @@ export default function HostProfilePage() {
     };
 
     fetchOverview();
-  }, [hostId, currentUser, checkedUser]);
+  }, [hostId, checkedUser]);
 
+  const isOwnProfile =
+    !hostId || (currentUser && String(currentUser.userId || currentUser.id) === String(hostId));
   const tabs = [
     { id: "applied", label: "Applied Events", count: appliedEvents.length },
     { id: "attended", label: "Attended Events", count: attendedEvents.length },
     { id: "trainings", label: "Trainings", count: trainings.length },
     { id: "clients", label: "Clients", count: workedClients.length },
+    ...(isOwnProfile ? [{ id: "settings", label: "Settings", count: 0 }] : []),
   ];
+
+  const handleProfilePicSave = async (e) => {
+    e.preventDefault();
+    setProfilePicError("");
+    setProfilePicSuccess("");
+    setApplyMessage("");
+    setApplyError("");
+
+    const userId = resolveUserId();
+    if (!userId) {
+      setProfilePicError("Unable to find your account id. Please sign in again.");
+      return;
+    }
+
+    const trimmed = profilePicUrl.trim();
+    setSavingProfilePic(true);
+    try {
+      await api.put(`/users/${userId}`, { profilePic: trimmed || null });
+      setProfile((prev) =>
+        prev ? { ...prev, profilePic: trimmed || null, profileImage: trimmed || null } : prev
+      );
+      if (currentUser) {
+        const updatedUser = { ...currentUser, profilePic: trimmed || null };
+        setCurrentUser(updatedUser);
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+      }
+      setProfilePicSuccess("Profile photo updated.");
+    } catch (err) {
+      const message = err?.response?.data?.message || err.message || "Failed to update profile photo";
+      setProfilePicError(message);
+    } finally {
+      setSavingProfilePic(false);
+    }
+  };
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    setPasswordError("");
+    setPasswordSuccess("");
+    setApplyMessage("");
+    setApplyError("");
+
+    if (!newPassword || !confirmPassword) {
+      setPasswordError("Please enter and confirm your new password.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError("Password must be at least 6 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match.");
+      return;
+    }
+
+    const userId = resolveUserId();
+    if (!userId) {
+      setPasswordError("Unable to find your account id. Please sign in again.");
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      await api.put(`/users/${userId}`, { password: newPassword });
+      setPasswordSuccess("Password updated successfully.");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      const message = err?.response?.data?.message || err.message || "Failed to update password";
+      setPasswordError(message);
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
+  const handleApplyTraining = async (trainingId) => {
+    setApplyMessage("");
+    setApplyError("");
+    setApplyingId(trainingId);
+    const userId = resolveUserId();
+    if (!userId) {
+      setApplyError("Please sign in again to join this training.");
+      setApplyingId(null);
+      return;
+    }
+    try {
+      await api.post(`/trainings/${trainingId}/apply`);
+      setApplyMessage("You're in! Training has been added to your schedule.");
+    } catch (err) {
+      const msg = err?.response?.data?.message || err.message || "Failed to join training";
+      setApplyError(msg);
+    } finally {
+      setApplyingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -221,6 +349,172 @@ export default function HostProfilePage() {
             {activeTab === "attended" && <AttendedEvents events={attendedEvents} />}
             {activeTab === "trainings" && <Trainings trainings={trainings} />}
             {activeTab === "clients" && <WorkedClients clients={workedClients} />}
+            {activeTab === "settings" && isOwnProfile && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-3xl border border-gray-100 shadow p-8 space-y-6">
+                  <div className="space-y-1">
+                    <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">
+                      Available Trainings
+                    </p>
+                    <h2 className="text-2xl font-bold text-gray-900">Join a Training</h2>
+                    <p className="text-sm text-gray-600">
+                      Browse sessions and join instantly. No approval step.
+                    </p>
+                  </div>
+
+                  {applyError && (
+                    <div className="bg-red-50 border border-red-100 text-red-700 text-sm rounded-2xl px-4 py-3">
+                      {applyError}
+                    </div>
+                  )}
+                  {applyMessage && (
+                    <div className="bg-green-50 border border-green-100 text-green-700 text-sm rounded-2xl px-4 py-3">
+                      {applyMessage}
+                    </div>
+                  )}
+
+                  {availableTrainings.length === 0 ? (
+                    <p className="text-sm text-gray-500">No trainings available right now.</p>
+                  ) : (
+                    <div className="grid gap-3">
+                      {availableTrainings.map((t) => (
+                        <div
+                          key={t.trainingId || t.id}
+                          className="border border-gray-100 rounded-2xl p-4 flex flex-col gap-2 bg-cream"
+                        >
+                          <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.25em] text-ocean font-semibold">Training</p>
+                              <h3 className="text-lg font-semibold text-gray-900">{t.title}</h3>
+                              <p className="text-sm text-gray-600">
+                                {t.date} • {t.startTime?.slice(0,5)} - {t.endTime?.slice(0,5)} • {t.location || "TBA"}
+                              </p>
+                            </div>
+                            <button
+                              className="px-4 py-2 rounded-xl bg-ocean text-white text-sm font-semibold shadow hover:bg-ocean/90 disabled:opacity-60"
+                              disabled={applyingId === (t.trainingId || t.id)}
+                              onClick={() => handleApplyTraining(t.trainingId || t.id)}
+                            >
+                              {applyingId === (t.trainingId || t.id) ? "Applying..." : "Apply"}
+                            </button>
+                          </div>
+                          {t.description && (
+                            <p className="text-sm text-gray-700">{t.description}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-white rounded-3xl border border-gray-100 shadow p-8 space-y-6">
+                  <div className="space-y-1">
+                    <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">
+                      Profile Photo
+                    </p>
+                    <h2 className="text-2xl font-bold text-gray-900">Update Photo</h2>
+                    <p className="text-sm text-gray-600">Paste a public image URL.</p>
+                  </div>
+
+                  {profilePicError && (
+                    <div className="bg-red-50 border border-red-100 text-red-700 text-sm rounded-2xl px-4 py-3">
+                      {profilePicError}
+                    </div>
+                  )}
+                  {profilePicSuccess && (
+                    <div className="bg-green-50 border border-green-100 text-green-700 text-sm rounded-2xl px-4 py-3">
+                      {profilePicSuccess}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleProfilePicSave} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Profile Photo URL
+                      </label>
+                      <input
+                        type="url"
+                        value={profilePicUrl}
+                        onChange={(e) => setProfilePicUrl(e.target.value)}
+                        placeholder="https://example.com/photo.jpg"
+                        className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean bg-white"
+                        disabled={savingProfilePic}
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        className="px-6 py-3 rounded-xl bg-ocean text-white text-sm font-semibold shadow-md hover:bg-ocean/90 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                        disabled={savingProfilePic}
+                      >
+                        {savingProfilePic ? "Saving..." : "Save Photo"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                <div className="bg-white rounded-3xl border border-gray-100 shadow p-8 space-y-6">
+                  <div className="space-y-1">
+                    <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">
+                      Security
+                    </p>
+                    <h2 className="text-2xl font-bold text-gray-900">Change Password</h2>
+                  </div>
+
+                  {passwordError && (
+                    <div className="bg-red-50 border border-red-100 text-red-700 text-sm rounded-2xl px-4 py-3">
+                      {passwordError}
+                    </div>
+                  )}
+                  {passwordSuccess && (
+                    <div className="bg-green-50 border border-green-100 text-green-700 text-sm rounded-2xl px-4 py-3">
+                      {passwordSuccess}
+                    </div>
+                  )}
+
+                  <form onSubmit={handlePasswordChange} className="space-y-4">
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          New Password
+                        </label>
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="At least 6 characters"
+                          className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean bg-white"
+                          disabled={savingPassword}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Confirm Password
+                        </label>
+                        <input
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Re-enter new password"
+                          className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean bg-white"
+                          disabled={savingPassword}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        className="px-6 py-3 rounded-xl bg-ocean text-white text-sm font-semibold shadow-md hover:bg-ocean/90 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                        disabled={savingPassword}
+                      >
+                        {savingPassword ? "Saving..." : "Save Password"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         </section>
       </div>

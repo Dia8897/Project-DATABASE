@@ -1,0 +1,100 @@
+import React, { useEffect, useState } from "react";
+import { Mail, Phone, MapPin } from "lucide-react";
+
+export default function ClientProfileHeader({ client, stats }) {
+  const [imageError, setImageError] = useState(false);
+  useEffect(() => {
+    // Reset error when profilePic changes so a new URL can load.
+    setImageError(false);
+  }, [client?.profilePic]);
+  const initials = `${client?.fName?.[0] || ""}${client?.lName?.[0] || ""}` || "C";
+  const displayName = [client?.fName, client?.lName].filter(Boolean).join(" ") || "Client";
+  const subtitle =
+    client?.address && client?.age
+      ? `${client.address} • ${client.age} yrs`
+      : client?.address || client?.email || "Welcome back to your dashboard";
+  const avatarSrc = !imageError ? client?.profilePic : null;
+
+  const statItems = [
+    { label: "Total Requests", value: stats?.total ?? 0, color: "text-gray-900" },
+    { label: "Accepted", value: stats?.accepted ?? 0, color: "text-green-700" },
+    { label: "Pending", value: stats?.pending ?? 0, color: "text-amber-700" },
+    { label: "Rejected/Other", value: stats?.rejected ?? 0, color: "text-rose" },
+  ];
+
+  return (
+    <section className="px-4">
+      <div className="max-w-6xl mx-auto bg-white rounded-[3rem] p-8 md:p-12 shadow-xl border border-gray-100">
+        <div className="space-y-8">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-6">
+            {avatarSrc ? (
+              <img
+                src={avatarSrc}
+                alt={displayName}
+                className="w-16 h-16 rounded-2xl object-cover border-4 border-cream shadow-lg"
+                onError={() => setImageError(true)}
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-2xl bg-ocean text-white text-2xl font-bold flex items-center justify-center shadow-lg">
+                {initials}
+              </div>
+            )}
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-[0.4em] text-ocean font-semibold">
+                Client Profile
+              </p>
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
+                {displayName}
+              </h1>
+              <p className="text-gray-600">{subtitle}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="flex items-center gap-3 text-sm text-gray-700">
+              <div className="w-10 h-10 rounded-xl bg-cream flex items-center justify-center text-ocean">
+                <Mail size={18} />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500">Email</p>
+                <p className="font-semibold text-gray-900">{client?.email || "Not shared"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-gray-700">
+              <div className="w-10 h-10 rounded-xl bg-cream flex items-center justify-center text-ocean">
+                <Phone size={18} />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500">Phone</p>
+                <p className="font-semibold text-gray-900">{client?.phoneNb || "Not shared"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-gray-700">
+              <div className="w-10 h-10 rounded-xl bg-cream flex items-center justify-center text-ocean">
+                <MapPin size={18} />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500">Address</p>
+                <p className="font-semibold text-gray-900">{client?.address || "Add your address"}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-cream rounded-2xl border border-gray-100 px-6 py-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {statItems.map((stat) => (
+                <div key={stat.label} className="flex flex-col gap-1">
+                  <p className="text-xs uppercase tracking-[0.25em] text-gray-500 font-semibold">
+                    {stat.label}
+                  </p>
+                  <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

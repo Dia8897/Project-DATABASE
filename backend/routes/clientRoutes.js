@@ -101,13 +101,13 @@ router.post("/", async (req, res) => {
     });
   }
 
-  const { fName, lName, email, phoneNb, age, gender, address, password } = req.body;
+  const { fName, lName, email, phoneNb, age, gender, address, password, profilePic } = req.body;
 
   try {
     const hashedPass = await bcrypt.hash(password, 10);
     const [result] = await db.query(
-      `INSERT INTO CLIENTS (fName, lName, email, phoneNb, age, gender, address, password)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO CLIENTS (fName, lName, email, phoneNb, age, gender, address, password, profilePic)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         fName.trim(),
         lName.trim(),
@@ -116,7 +116,8 @@ router.post("/", async (req, res) => {
         Number(age),
         gender.trim(),
         address.trim(),
-        hashedPass
+        hashedPass,
+        profilePic || null
       ]
     );
     res.status(201).json({ clientId: result.insertId, message: "Client created" });
@@ -152,6 +153,7 @@ router.put("/:id", verifyToken, async (req, res) => {
       age: req.body.age ?? currentClient.age,
       gender: req.body.gender ?? currentClient.gender,
       address: req.body.address ?? currentClient.address,
+      profilePic: req.body.profilePic ?? currentClient.profilePic,
     };
 
     // Handle password separately
@@ -172,7 +174,7 @@ router.put("/:id", verifyToken, async (req, res) => {
     }
 
     const [result] = await db.query(
-      `UPDATE CLIENTS SET fName = ?, lName = ?, email = ?, password = ?, phoneNb = ?, age = ?, gender = ?, address = ?
+      `UPDATE CLIENTS SET fName = ?, lName = ?, email = ?, password = ?, phoneNb = ?, age = ?, gender = ?, address = ?, profilePic = ?
        WHERE clientId = ?`,
       [
         payload.fName.trim(),
@@ -183,6 +185,7 @@ router.put("/:id", verifyToken, async (req, res) => {
         Number(payload.age),
         payload.gender.trim(),
         payload.address.trim(),
+        payload.profilePic || null,
         requestedId,
       ]
     );

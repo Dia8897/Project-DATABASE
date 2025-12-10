@@ -131,7 +131,7 @@ export default function HostApplications() {
 
   const filteredApplicants = useMemo(() => {
     if (activeFilter === "all") return applicants;
-    return applicants.filter((app) => app.status === activeFilter);
+    return applicants.filter((app) => String(app.status || "").toLowerCase() === activeFilter);
   }, [activeFilter, applicants]);
 
   const updateStatus = (applicationId, status) => {

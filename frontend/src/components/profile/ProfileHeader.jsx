@@ -1,9 +1,16 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Mail, Phone, MapPin, Star } from "lucide-react";
 
 export default function ProfileHeader({ profile }) {
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    // Reset error state when the pic changes so a new URL can attempt to load.
+    setImageError(false);
+  }, [profile.profileImage, profile.profilePic]);
+
   const initials = `${profile.fName?.[0] || ""}${profile.lName?.[0] || ""}`;
-  const avatarSrc = profile.profileImage || profile.profilePic || null;
+  const avatarSrc = imageError ? null : profile.profileImage || profile.profilePic || null;
 
   return (
     <section className="px-4">
@@ -16,6 +23,8 @@ export default function ProfileHeader({ profile }) {
                 src={avatarSrc}
                 alt={`${profile.fName} ${profile.lName}`}
                 className="w-32 h-32 rounded-full object-cover border-4 border-sky"
+                onError={() => setImageError(true)}
+                referrerPolicy="no-referrer"
               />
             ) : (
               <div className="w-32 h-32 rounded-full bg-ocean flex items-center justify-center text-white text-4xl font-bold">

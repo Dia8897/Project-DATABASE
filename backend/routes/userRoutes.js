@@ -21,6 +21,7 @@ const validateUserPayload = (body, { requirePassword = true } = {}) => {
     address,
     clothingSize,
     description,
+    profilePic,
   } = body;
 
   if (!fName || !fName.trim()) errors.push("First name is required.");
@@ -244,13 +245,14 @@ router.post("/", async (req, res) => {
     address,
     clothingSize,
     description,
+    profilePic,
   } = req.body;
 
   try {
     const hashedPass = await bcrypt.hash(password, 10);
     const [result] = await db.query(
-      `INSERT INTO USERS (fName, lName, email, password, phoneNb, age, gender, address, clothingSize, description)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO USERS (fName, lName, email, password, phoneNb, age, gender, address, clothingSize, description, profilePic)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         fName.trim(),
         lName.trim(),
@@ -262,6 +264,7 @@ router.post("/", async (req, res) => {
         address.trim(),
         clothingSize.trim(),
         description.trim(),
+        profilePic?.trim() || null,
       ]
     );
     res.status(201).json({ userId: result.insertId, message: "User created" });
@@ -301,6 +304,7 @@ router.put("/:id", verifyToken, isUserOrAdmin, async (req, res) => {
       address: req.body.address ?? currentUser.address,
       clothingSize: req.body.clothingSize ?? currentUser.clothingSize,
       description: req.body.description ?? currentUser.description,
+      profilePic: req.body.profilePic ?? currentUser.profilePic,
     };
 
     let updatedEligibility = currentUser.eligibility;
@@ -331,13 +335,23 @@ router.put("/:id", verifyToken, isUserOrAdmin, async (req, res) => {
       });
     }
 
+    // Handle password separately
+    let hashedPassword = currentUser.password;
+    if (req.body.password) {
+      if (req.body.password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters." });
+      }
+      hashedPassword = await bcrypt.hash(req.body.password, 10);
+    }
+
     const [result] = await db.query(
-      `UPDATE USERS SET fName = ?, lName = ?, email = ?, phoneNb = ?, age = ?, gender = ?, address = ?, clothingSize = ?, description = ?, eligibility = ?
+      `UPDATE USERS SET fName = ?, lName = ?, email = ?, password = ?, phoneNb = ?, age = ?, gender = ?, address = ?, clothingSize = ?, description = ?, eligibility = ?, profilePic = ?
        WHERE userId = ?`,
       [
         payload.fName.trim(),
         payload.lName.trim(),
         payload.email.trim(),
+        hashedPassword,
         payload.phoneNb.trim(),
         Number(payload.age),
         payload.gender.trim(),
@@ -345,6 +359,7 @@ router.put("/:id", verifyToken, isUserOrAdmin, async (req, res) => {
         payload.clothingSize.trim(),
         payload.description.trim(),
         updatedEligibility,
+        payload.profilePic?.trim() || null,
         requestedId,
       ]
     );

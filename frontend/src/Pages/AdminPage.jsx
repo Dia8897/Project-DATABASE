@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useEffect } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import AdminStats from "../components/admin/AdminStats";
@@ -13,7 +14,9 @@ export default function AdminPage() {
       <Navbar />
       
       {/* Stats Section */}
-      <AdminStats />
+      <div>
+        <AdminStats />
+      </div>
 
       {/* Tab Navigation */}
       <section className="px-4 py-8">

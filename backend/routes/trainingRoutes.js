@@ -122,6 +122,35 @@ router.get("/:id", verifyToken, isUserOrAdmin, async (req, res) => {
   }
 });
 
+// Apply to a training (host/user)
+router.post("/:id/apply", verifyToken, isUser, async (req, res) => {
+  const trainingId = parseInt(req.params.id, 10);
+  if (Number.isNaN(trainingId)) {
+    return res.status(400).json({ message: "Invalid training id" });
+  }
+
+  try {
+    // Ensure training exists
+    const [trainingRows] = await db.query("SELECT trainingId FROM TRAINING WHERE trainingId = ?", [trainingId]);
+    if (!trainingRows.length) {
+      return res.status(404).json({ message: "Training not found" });
+    }
+
+    await db.query(
+      "INSERT INTO TRAINEES (userId, trainingId) VALUES (?, ?)",
+      [req.user.id, trainingId]
+    );
+
+    res.status(201).json({ message: "Applied to training" });
+  } catch (err) {
+    if (err.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ message: "Already applied to this training" });
+    }
+    console.error("Failed to apply to training", err);
+    res.status(500).json({ message: "Failed to apply to training" });
+  }
+});
+
 // CREATE training (admin only)
 router.post("/", verifyToken, isAdmin, async (req, res) => {
   const requiredFields = [

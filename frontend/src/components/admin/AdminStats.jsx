@@ -2,10 +2,8 @@ import React, { useEffect, useState } from "react";
 import api from "../../services/api";
 
 const defaultStats = [
-  { label: "Pending Requests", key: "pendingRequests", value: 0, color: "text-rose" },
-  { label: "Total Applications", key: "applications", value: 0, color: "text-ocean" },
-  { label: "Approved Events", key: "approvedEvents", value: 0, color: "text-mint" },
-  { label: "Active Hosts", key: "activeHosts", value: 0, color: "text-sky" },
+  { label: "Pending Client Event Requests", key: "totalEventRequests", value: 0, color: "text-ocean" },
+  { label: "Pending Host Applications", key: "pendingHostApplications", value: 0, color: "text-rose" },
 ];
 
 export default function AdminStats() {
@@ -25,19 +23,15 @@ export default function AdminStats() {
 
         if (cancelled) return;
 
-        const { pendingRequests, totalApplications, approvedEvents, activeHosts } = response.data;
+        const { totalEventRequests, pendingHostApplications } = response.data;
 
         setStats((prev) =>
           prev.map((stat) => {
             switch (stat.key) {
-              case "pendingRequests":
-                return { ...stat, value: pendingRequests || 0 };
-              case "applications":
-                return { ...stat, value: totalApplications || 0 };
-              case "approvedEvents":
-                return { ...stat, value: approvedEvents || 0 };
-              case "activeHosts":
-                return { ...stat, value: activeHosts || 0 };
+              case "totalEventRequests":
+                return { ...stat, value: totalEventRequests || 0 };
+              case "pendingHostApplications":
+                return { ...stat, value: pendingHostApplications || 0 };
               default:
                 return stat;
             }
@@ -80,11 +74,11 @@ export default function AdminStats() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4">
+          <div className="grid grid-cols-2 gap-6 pt-4">
             {stats.map((stat) => (
               <div
                 key={stat.label}
-                className="rounded-2xl border border-gray-100 bg-cream px-4 py-5 text-center hover:shadow-md transition"
+                className="rounded-2xl border border-gray-100 bg-cream px-6 py-6 text-center hover:shadow-md transition"
               >
                 <p className={`text-3xl font-bold ${stat.color}`}>
                   {loading ? "…" : stat.value}

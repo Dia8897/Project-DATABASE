@@ -37,6 +37,22 @@ router.get("/event-requests", verifyToken, isAdmin, async (req, res) => {
   }
 });
 
+// Admin dashboard stats (keep before /:id to avoid route shadowing)
+router.get("/stats", verifyToken, isAdmin, async (req, res) => {
+  try {
+    const [totalEventRequests] = await db.query("SELECT COUNT(*) as count FROM EVENTS");
+    const [pendingHostApplications] = await db.query("SELECT COUNT(*) as count FROM EVENT_APP WHERE status = 'pending'");
+
+    res.json({
+      totalEventRequests: totalEventRequests[0].count,
+      pendingHostApplications: pendingHostApplications[0].count,
+    });
+  } catch (err) {
+    console.error("Failed to fetch stats", err);
+    res.status(500).json({ message: "Failed to fetch stats" });
+  }
+});
+
 // GET /api/users - Fetch all users (hosts/hostesses)
 router.get("/", verifyToken, isAdmin, async (req, res) => {
   try {
@@ -385,26 +401,6 @@ router.put("/host-applications/:id/approve", verifyToken, isAdmin, async (req, r
 //     res.status(500).json({ message: "Failed to reject application" });
 //   }
 // });
-
-// GET admin stats
-router.get("/stats", verifyToken, isAdmin, async (req, res) => {
-  try {
-    const [pendingRequests] = await db.query("SELECT COUNT(*) as count FROM EVENTS WHERE status = 'pending'");
-    const [totalApplications] = await db.query("SELECT COUNT(*) as count FROM EVENT_APP WHERE status = 'pending'");
-    const [approvedEvents] = await db.query("SELECT COUNT(*) as count FROM EVENTS WHERE status = 'accepted'");
-    const [activeHosts] = await db.query("SELECT COUNT(*) as count FROM USERS WHERE eligibility = 'approved'");
-
-    res.json({
-      pendingRequests: pendingRequests[0].count,
-      totalApplications: totalApplications[0].count,
-      approvedEvents: approvedEvents[0].count,
-      activeHosts: activeHosts[0].count,
-    });
-  } catch (err) {
-    console.error("Failed to fetch stats", err);
-    res.status(500).json({ message: "Failed to fetch stats" });
-  }
-});
 
 
 export default router;

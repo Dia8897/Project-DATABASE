@@ -71,7 +71,7 @@ export default function Navbar() {
 
     const profilePath =
         session.userType === "admin"
-            ? "/admin"
+            ? "/admin/profile"
             : session.userType === "client"
             ? "/client"
             : "/profile";
