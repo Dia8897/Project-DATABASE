@@ -10,6 +10,7 @@ import adminRoutes from "./routes/adminRoutes.js";
 import clientRoutes from "./routes/clientRoutes.js";
 import trainingRoutes from "./routes/trainingRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
+import clothingRoutes from "./routes/clothingRoutes.js";
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ app.use("/api/admins", adminRoutes);
 app.use("/api/clients", clientRoutes);
 app.use("/api/trainings", trainingRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/clothing", clothingRoutes);
 // Start server
 const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 5050;
 const MAX_PORT_SEARCH = 20;

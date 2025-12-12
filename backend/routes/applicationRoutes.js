@@ -78,11 +78,13 @@ router.get("/event/:eventId", verifyToken, isAdmin, async (req, res) => {
   try {
     const [rows] = await db.query(`
       SELECT ea.*,
-             u.fName, u.lName, u.email, u.phoneNb, u.age, u.description,
-             e.title as eventTitle, DATE(e.startsAt) as eventDate, e.location as eventLocation
+             u.fName, u.lName, u.email, u.phoneNb, u.age, u.description, u.clothingSize,
+             e.title as eventTitle, DATE(e.startsAt) as eventDate, e.location as eventLocation,
+             cs.stockQty as availableStock
       FROM EVENT_APP ea
       JOIN USERS u ON ea.senderId = u.userId
       JOIN EVENTS e ON ea.eventId = e.eventId
+      LEFT JOIN CLOTHING_STOCK cs ON cs.clothingId = e.clothesId AND cs.size = u.clothingSize
       WHERE ea.eventId = ?
       ORDER BY ea.sentAt DESC
     `, [eventId]);
@@ -96,7 +98,7 @@ router.get("/event/:eventId", verifyToken, isAdmin, async (req, res) => {
 
 router.post("/", verifyToken, isUser, async (req, res) => {
   try {
-    const { requestedRole, notes, eventId } = req.body;
+    const { requestedRole, notes, eventId, requestDress } = req.body;
 
     // Validation
     if (!requestedRole || !requestedRole.trim()) {
@@ -108,12 +110,13 @@ router.post("/", verifyToken, isUser, async (req, res) => {
 
     // Check if event exists and is approved
     const [eventCheck] = await db.query(
-      "SELECT eventId FROM EVENTS WHERE eventId = ? AND status = 'accepted'",
+      "SELECT eventId, clothesId FROM EVENTS WHERE eventId = ? AND status = 'accepted'",
       [parseInt(eventId)]
     );
     if (eventCheck.length === 0) {
       return res.status(400).json({ message: "Invalid event - event not found or not approved" });
     }
+    const event = eventCheck[0];
 
     // Check if user has already applied to this event
     const [existingApp] = await db.query(
@@ -126,9 +129,9 @@ router.post("/", verifyToken, isUser, async (req, res) => {
     }
 
     const [result] = await db.query(
-      `INSERT INTO EVENT_APP (status, requestedRole, assignedRole, notes, sentAt, decidedAt, senderId, adminId, eventId)
-       VALUES (?, ?, ?, ?, NOW(), NULL, ?, NULL, ?)`,
-      ['pending', requestedRole.trim(), null, notes || null, req.user.id, parseInt(eventId)]
+      `INSERT INTO EVENT_APP (status, requestedRole, assignedRole, notes, sentAt, decidedAt, senderId, adminId, eventId, requestDress)
+       VALUES (?, ?, ?, ?, NOW(), NULL, ?, NULL, ?, ?)`,
+      ['pending', requestedRole.trim(), null, notes || null, req.user.id, parseInt(eventId), requestDress ? 1 : 0]
     );
 
     res.status(201).json({
@@ -169,8 +172,8 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   }
 
   try {
-    // First, get the current application to check status and get requestedRole, eventId, senderId
-    const [currentApp] = await db.query("SELECT status, requestedRole, eventId, senderId FROM EVENT_APP WHERE eventAppId = ?", [id]);
+    // First, get the current application to check status and get requestedRole, eventId, senderId, requestDress
+    const [currentApp] = await db.query("SELECT status, requestedRole, eventId, senderId, requestDress FROM EVENT_APP WHERE eventAppId = ?", [id]);
     if (currentApp.length === 0) {
       return res.status(404).json({ message: "Event application not found" });
     }
@@ -179,6 +182,7 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
     const requestedRole = currentApp[0].requestedRole;
     const eventId = currentApp[0].eventId;
     const senderId = currentApp[0].senderId;
+    const requestDress = currentApp[0].requestDress;
     const resultingStatus = typeof status !== "undefined" ? status : currentStatus;
 
     // Prevent changing status if already decided
@@ -319,6 +323,39 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
         "UPDATE EVENTS SET teamLeaderId = ? WHERE eventId = ?",
         [senderId, eventId]
       );
+    }
+
+    // Handle stock update for dress request on acceptance
+    if (resultingStatus === 'accepted' && requestDress) {
+      // Get user's clothing size
+      const [userRows] = await db.query("SELECT clothingSize FROM USERS WHERE userId = ?", [senderId]);
+      if (userRows.length === 0) {
+        return res.status(400).json({ message: "User not found" });
+      }
+      const userSize = userRows[0].clothingSize;
+
+      // Get event's clothesId
+      const [eventRows] = await db.query("SELECT clothesId FROM EVENTS WHERE eventId = ?", [eventId]);
+      if (eventRows.length === 0 || !eventRows[0].clothesId) {
+        return res.status(400).json({ message: "Event or clothing not found" });
+      }
+      const clothesId = eventRows[0].clothesId;
+
+      // Check and decrement stock
+      const [stockRows] = await db.query(
+        "SELECT stockQty FROM CLOTHING_STOCK WHERE clothingId = ? AND size = ?",
+        [clothesId, userSize]
+      );
+      if (stockRows.length > 0 && stockRows[0].stockQty > 0) {
+        await db.query(
+          "UPDATE CLOTHING_STOCK SET stockQty = stockQty - 1 WHERE clothingId = ? AND size = ?",
+          [clothesId, userSize]
+        );
+      } else {
+        // If no stock, reject the acceptance (rollback logic)
+        await db.query("UPDATE EVENT_APP SET status = 'pending' WHERE eventAppId = ?", [id]);
+        return res.status(409).json({ message: "Cannot accept application - insufficient stock for requested dress size" });
+      }
     }
 
     res.json({ message: "Event application updated" });

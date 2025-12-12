@@ -23,9 +23,11 @@ router.get("/event-requests", verifyToken, isAdmin, async (req, res) => {
               c.fName AS clientFirstName,
               c.lName AS clientLastName,
               c.email AS clientEmail,
-              c.phoneNb AS clientPhone
+              c.phoneNb AS clientPhone,
+              cl.clothingLabel, cl.picture AS clothingPicture, cl.description AS clothingDescription
          FROM EVENTS e
     LEFT JOIN CLIENTS c ON c.clientId = e.clientId
+    LEFT JOIN CLOTHING cl ON cl.clothesId = e.clothesId
         ${whereClause}
         ORDER BY e.createdAt DESC`,
       params

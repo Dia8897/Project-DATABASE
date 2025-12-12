@@ -76,7 +76,7 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
               c.description AS clothingDescription
          FROM EVENT_APP ea
          JOIN USERS u ON u.userId = ea.senderId
-    LEFT JOIN CLOTHING c ON c.eventAppId = ea.eventAppId
+    LEFT JOIN CLOTHING c ON c.clothesId = e.clothesId AND ea.requestDress = 1
         WHERE ea.eventId = ? AND ea.status = 'accepted'
         ORDER BY ea.assignedRole DESC, u.fName`,
       [eventId]
