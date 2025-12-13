@@ -1,6 +1,6 @@
 import { Router } from "express";
 import db from "../config/db.js";
-import { verifyToken, isAdmin, isClient, isUserOrAdmin, isUser } from "../middleware/auth.js";
+import { verifyToken, isAdmin, isClient, isUserOrAdmin, isUser, requireActiveHost } from "../middleware/auth.js";
 
 const router = Router();
 const ALLOWED_STATUSES = ["pending", "accepted", "rejected"];
@@ -14,7 +14,13 @@ router.get("/", async (_req, res) => {
              c.clothingLabel AS clothingLabel,
              c.picture       AS clothingPicture,
              c.description   AS clothingDescription,
-             cs.stockInfo    AS clothingStockInfo
+             cs.stockInfo    AS clothingStockInfo,
+             (
+               SELECT COUNT(*)
+                 FROM EVENT_APP ea
+                WHERE ea.eventId = e.eventId
+                  AND ea.status = 'accepted'
+             ) AS acceptedHostsCount
         FROM EVENTS e
    LEFT JOIN CLOTHING c ON c.clothesId = e.clothesId
    LEFT JOIN (
@@ -47,7 +53,13 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
               cl.clothingLabel AS clothingLabel,
               cl.picture       AS clothingPicture,
               cl.description   AS clothingDescription,
-              cs.stockInfo     AS clothingStockInfo
+              cs.stockInfo     AS clothingStockInfo,
+              (
+                SELECT COUNT(*)
+                  FROM EVENT_APP ea2
+                 WHERE ea2.eventId = e.eventId
+                   AND ea2.status = 'accepted'
+              ) AS acceptedHostsCount
          FROM EVENTS e
     LEFT JOIN CLIENTS c ON c.clientId = e.clientId
     LEFT JOIN USERS tl ON tl.userId = e.teamLeaderId
@@ -94,14 +106,14 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
               u.clothingSize,
               u.profilePic,
               u.description,
-              c.clothesId,
-              c.clothingLabel,
-              c.status   AS clothingStatus,
-              c.picture  AS clothingPicture,
-              c.description AS clothingDescription
-         FROM EVENT_APP ea
-         JOIN USERS u ON u.userId = ea.senderId
-    LEFT JOIN CLOTHING c ON c.clothesId = e.clothesId AND ea.requestDress = 1
+              clo.clothesId,
+              clo.clothingLabel,
+              clo.picture  AS clothingPicture,
+              clo.description AS clothingDescription
+        FROM EVENT_APP ea
+        JOIN USERS u ON u.userId = ea.senderId
+    LEFT JOIN EVENTS ev ON ev.eventId = ea.eventId
+    LEFT JOIN CLOTHING clo ON clo.clothesId = ev.clothesId AND ea.requestDress = 1
         WHERE ea.eventId = ? AND ea.status = 'accepted'
         ORDER BY ea.assignedRole DESC, u.fName`,
       [eventId]
@@ -149,6 +161,7 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
         endsAt: normalizeDate(event.endsAt),
         venue: event.venue,
         nbOfHosts: event.nbOfHosts,
+        acceptedHostsCount: event.acceptedHostsCount || 0,
         dressCode: event.dressCode ?? null,
         status: event.status,
         teamLeaderId: event.teamLeaderId,
@@ -178,7 +191,6 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
           ? {
               clothesId: host.clothesId,
               label: host.clothingLabel,
-              status: host.clothingStatus,
               picture: host.clothingPicture,
               description: host.clothingDescription,
             }
@@ -199,7 +211,7 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
   }
 });
 
-router.get("/team-leader/assignments", verifyToken, isUser, async (req, res) => {
+router.get("/team-leader/assignments", verifyToken, requireActiveHost, async (req, res) => {
   const userId = req.user.id;
   try {
     const [rows] = await db.query(
@@ -236,6 +248,12 @@ router.get("/:id", async (req, res) => {
               cl.clothingLabel AS clothingLabel,
               cl.picture       AS clothingPicture,
               cl.description   AS clothingDescription,
+              (
+                SELECT COUNT(*)
+                  FROM EVENT_APP ea
+                 WHERE ea.eventId = e.eventId
+                   AND ea.status = 'accepted'
+              ) AS acceptedHostsCount,
               cs.stockInfo     AS clothingStockInfo
          FROM EVENTS e
     LEFT JOIN CLOTHING cl ON cl.clothesId = e.clothesId

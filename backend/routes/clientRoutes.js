@@ -22,8 +22,8 @@ const validateClientPayload = (body, { requirePassword = true } = {}) => {
   if (!phoneNb || !phoneNb.trim()) errors.push("Phone number is required.");
 
   const ageValue = Number(age);
-  if (Number.isNaN(ageValue) || ageValue < 18 || ageValue > 80) {
-    errors.push("Age must be between 18 and 80.");
+  if (Number.isNaN(ageValue) || ageValue < 18 || ageValue > 100) {
+    errors.push("Age must be between 18 and 100.");
   }
 
   const genderValue = gender?.trim();

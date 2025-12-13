@@ -1,6 +1,6 @@
 import { Router } from "express";
 import db from "../config/db.js";
-import { verifyToken, isAdmin, isUser, isUserOrAdmin } from "../middleware/auth.js";
+import { verifyToken, isAdmin, isUserOrAdmin, requireActiveHost } from "../middleware/auth.js";
 
 
 const router = Router();
@@ -96,7 +96,7 @@ router.get("/event/:eventId", verifyToken, isAdmin, async (req, res) => {
 });
 
 
-router.post("/", verifyToken, isUser, async (req, res) => {
+router.post("/", verifyToken, requireActiveHost, async (req, res) => {
   try {
     const { requestedRole, notes, eventId, requestDress } = req.body;
 

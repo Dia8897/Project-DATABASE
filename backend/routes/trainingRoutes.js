@@ -1,6 +1,6 @@
 import { Router } from "express";
 import db from "../config/db.js";
-import { verifyToken, isAdmin, isUser, isUserOrAdmin } from "../middleware/auth.js";
+import { verifyToken, isAdmin, isUser, isUserOrAdmin, requireActiveHost } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -123,7 +123,7 @@ router.get("/:id", verifyToken, isUserOrAdmin, async (req, res) => {
 });
 
 // Apply to a training (host/user)
-router.post("/:id/apply", verifyToken, isUser, async (req, res) => {
+router.post("/:id/apply", verifyToken, requireActiveHost, async (req, res) => {
   const trainingId = parseInt(req.params.id, 10);
   if (Number.isNaN(trainingId)) {
     return res.status(400).json({ message: "Invalid training id" });

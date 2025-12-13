@@ -1,10 +1,15 @@
 import { Router } from "express";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
 import db from "../config/db.js";
-import { verifyToken, isAdmin, isUser } from "../middleware/auth.js";
+import { verifyToken, isAdmin, requireActiveHost } from "../middleware/auth.js";
+
+dotenv.config();
 
 const router = Router();
 const MIN_STAR_RATING = 1;
 const MAX_STAR_RATING = 5;
+const VISIBILITY_VALUES = new Set(["public", "private", "hidden"]);
 
 const parsePositiveInt = (value) => {
   const parsed = Number.parseInt(value, 10);
@@ -18,261 +23,209 @@ const parseStarRating = (value) => {
   return parsed;
 };
 
-const coerceVisibility = (value) => {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") {
-    if (value === 1) return true;
-    if (value === 0) return false;
+const optionalAuth = (req, _res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) {
+    req.optionalUser = null;
+    return next();
   }
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (["1", "true", "visible", "public"].includes(normalized)) return true;
-    if (["0", "false", "hidden", "private"].includes(normalized)) return false;
+  try {
+    req.optionalUser = jwt.verify(token, process.env.JWT_SECRET);
+  } catch (err) {
+    req.optionalUser = null;
   }
-  return null;
+  next();
 };
 
-router.get("/", verifyToken, async (req, res) => {
-  const isAdminRequest = req.user.role === "admin";
-  const sql = isAdminRequest
-    ? "SELECT * FROM REVIEW"
-    : "SELECT * FROM REVIEW WHERE visibility = 1";
+const mapReviewRow = (row) => ({
+  reviewerId: row.reviewerId,
+  eventId: row.eventId,
+  starRating: row.starRating,
+  content: row.content,
+  visibility: row.visibility,
+  createdAt: row.createdAt,
+  reviewer: row.fName
+    ? {
+        fName: row.fName,
+        lName: row.lName,
+      }
+    : undefined,
+});
+
+router.post(
+  "/host/events/:eventId/review",
+  verifyToken,
+  requireActiveHost,
+  async (req, res) => {
+    const parsedEventId = parsePositiveInt(req.params.eventId);
+    if (!parsedEventId) {
+      return res.status(400).json({ message: "Invalid event id." });
+    }
+
+    const parsedRating = parseStarRating(req.body?.starRating);
+    if (parsedRating === null) {
+      return res
+        .status(400)
+        .json({ message: "starRating must be an integer between 1 and 5." });
+    }
+
+    const trimmedContent =
+      typeof req.body?.content === "string" ? req.body.content.trim() : "";
+
+    try {
+      const [eventRows] = await db.query(
+        `SELECT eventId, teamLeaderId, endsAt
+           FROM EVENTS
+          WHERE eventId = ?`,
+        [parsedEventId]
+      );
+      if (!eventRows.length) {
+        return res.status(404).json({ message: "Event not found." });
+      }
+      const event = eventRows[0];
+      if (event.teamLeaderId !== req.user.id) {
+        return res
+          .status(403)
+          .json({ message: "Only the team leader can review this event." });
+      }
+      const eventEnd = event.endsAt ? new Date(event.endsAt) : null;
+      if (!eventEnd || Number.isNaN(eventEnd.getTime()) || eventEnd > new Date()) {
+        return res
+          .status(400)
+          .json({ message: "You can only review an event after it has ended." });
+      }
+
+      const [existingRows] = await db.query(
+        `SELECT 1
+           FROM REVIEW
+          WHERE reviewerId = ? AND eventId = ?`,
+        [req.user.id, parsedEventId]
+      );
+      if (existingRows.length) {
+        return res
+          .status(400)
+          .json({ message: "You have already submitted a review for this event." });
+      }
+
+      await db.query(
+        `INSERT INTO REVIEW (reviewerId, eventId, starRating, content, visibility)
+         VALUES (?, ?, ?, ?, 'public')`,
+        [req.user.id, parsedEventId, parsedRating, trimmedContent || null]
+      );
+
+      const [createdRows] = await db.query(
+        `SELECT reviewerId, eventId, starRating, content, visibility, createdAt
+           FROM REVIEW
+          WHERE reviewerId = ? AND eventId = ?`,
+        [req.user.id, parsedEventId]
+      );
+      res.status(201).json({
+        message: "Review submitted successfully.",
+        review: createdRows[0],
+      });
+    } catch (err) {
+      console.error("Failed to create review", err);
+      res.status(500).json({ message: "Failed to create review." });
+    }
+  }
+);
+
+router.get("/events/:eventId/reviews", optionalAuth, async (req, res) => {
+  const parsedEventId = parsePositiveInt(req.params.eventId);
+  if (!parsedEventId) {
+    return res.status(400).json({ message: "Invalid event id." });
+  }
+
   try {
-    const [rows] = await db.query(sql);
-    res.json(rows);
+    const [eventRows] = await db.query("SELECT eventId FROM EVENTS WHERE eventId = ?", [
+      parsedEventId,
+    ]);
+    if (!eventRows.length) {
+      return res.status(404).json({ message: "Event not found." });
+    }
+
+    const currentUser = req.optionalUser ?? null;
+    const currentUserId = currentUser?.id ?? null;
+    const isAdminRequest = currentUser?.role === "admin";
+
+    let query = `
+      SELECT r.reviewerId,
+             r.eventId,
+             r.starRating,
+             r.content,
+             r.visibility,
+             r.createdAt,
+             u.fName,
+             u.lName
+        FROM REVIEW r
+        JOIN USERS u ON u.userId = r.reviewerId
+       WHERE r.eventId = ?
+    `;
+    const params = [parsedEventId];
+
+    if (!isAdminRequest) {
+      query += " AND (r.visibility = 'public'";
+      if (currentUserId) {
+        query += " OR r.reviewerId = ?";
+        params.push(currentUserId);
+      }
+      query += ")";
+    }
+
+    const [rows] = await db.query(query, params);
+    res.json({
+      eventId: parsedEventId,
+      reviews: rows.map(mapReviewRow),
+    });
   } catch (err) {
     console.error("Failed to fetch reviews", err);
-    res.status(500).json({ message: "Failed to fetch reviews" });
+    res.status(500).json({ message: "Failed to fetch reviews." });
   }
 });
 
-
-router.get("/:reviewerId/:eventId", verifyToken, isAdmin, async (req, res) => {
-  const { reviewerId, eventId } = req.params;
-  const parsedReviewerId = parsePositiveInt(reviewerId);
-  const parsedEventId = parsePositiveInt(eventId);
-
-  if (!parsedReviewerId || !parsedEventId) {
-    return res.status(400).json({ message: "Invalid reviewer or event id" });
-  }
-
-  try {
-    const [rows] = await db.query(
-      "SELECT * FROM REVIEW WHERE reviewerId = ? AND eventId = ?",
-      [parsedReviewerId, parsedEventId]
-    );
-
-    if (!rows.length) {
-      return res.status(404).json({ message: "Review not found" });
+router.patch(
+  "/admin/events/:eventId/reviews/:reviewerId/visibility",
+  verifyToken,
+  isAdmin,
+  async (req, res) => {
+    const parsedEventId = parsePositiveInt(req.params.eventId);
+    const parsedReviewerId = parsePositiveInt(req.params.reviewerId);
+    if (!parsedEventId || !parsedReviewerId) {
+      return res.status(400).json({ message: "Invalid reviewer or event id." });
     }
 
-    res.json(rows[0]);
-  } catch (err) {
-    console.error("Failed to fetch review", err);
-    res.status(500).json({ message: "Failed to fetch review" });
-  }
-});
-
-router.post("/", verifyToken, isUser, async (req, res) => {
-  const body = req.body ?? {};
-  const { eventId, starRating, content, visibility } = body;
-  const parsedEventId = parsePositiveInt(eventId);
-  const parsedRating = parseStarRating(starRating);
-  const trimmedContent = typeof content === "string" ? content.trim() : "";
-  const normalizedVisibility = coerceVisibility(
-    typeof visibility === "undefined" ? true : visibility
-  );
-
-  if (!parsedEventId) {
-    return res.status(400).json({ message: "Invalid event id" });
-  }
-  if (parsedRating === null) {
-    return res.status(400).json({ message: "starRating must be an integer between 1 and 5" });
-  }
-  if (!trimmedContent) {
-    return res.status(400).json({ message: "content is required" });
-  }
-  if (normalizedVisibility === null) {
-    return res.status(400).json({ message: "visibility must be boolean-like" });
-  }
-
-  try {
-    const [leaderCheck] = await db.query(
-      `SELECT 1 FROM EVENTS WHERE eventId = ? AND teamLeaderId = ?`,
-      [parsedEventId, req.user.id]
-    );
-    if (!leaderCheck.length) {
-      return res
-        .status(403)
-        .json({ message: "Only the assigned team leader can review this event" });
+    const visibilityInput = typeof req.body?.visibility === "string" ? req.body.visibility.trim().toLowerCase() : null;
+    if (!visibilityInput || !VISIBILITY_VALUES.has(visibilityInput)) {
+      return res.status(400).json({ message: "visibility must be 'public', 'private', or 'hidden'." });
     }
 
-    const [existingReview] = await db.query(
-      "SELECT 1 FROM REVIEW WHERE reviewerId = ? AND eventId = ?",
-      [req.user.id, parsedEventId]
-    );
-    if (existingReview.length) {
-      return res.status(409).json({ message: "You have already reviewed this event" });
-    }
-
-    await db.query(
-      `INSERT INTO REVIEW (reviewerId, eventId, starRating, content, visibility)
-       VALUES (?, ?, ?, ?, ?)`,
-      [req.user.id, parsedEventId, parsedRating, trimmedContent, Number(normalizedVisibility)]
-    );
-
-    res.status(201).json({
-      message: "Review created",
-      review: {
-        reviewerId: req.user.id,
-        eventId: parsedEventId,
-        starRating: parsedRating,
-        content: trimmedContent,
-        visibility: normalizedVisibility
+    try {
+      const [result] = await db.query(
+        `UPDATE REVIEW
+            SET visibility = ?
+          WHERE reviewerId = ? AND eventId = ?`,
+        [visibilityInput, parsedReviewerId, parsedEventId]
+      );
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "Review not found." });
       }
-    });
-  } catch (err) {
-    if (err.code === "ER_DUP_ENTRY") {
-      return res.status(409).json({ message: "A review already exists for this event" });
+
+      const [rows] = await db.query(
+        `SELECT reviewerId, eventId, starRating, content, visibility, createdAt
+           FROM REVIEW
+          WHERE reviewerId = ? AND eventId = ?`,
+        [parsedReviewerId, parsedEventId]
+      );
+
+      res.json({
+        message: "Review visibility updated successfully.",
+        review: rows[0],
+      });
+    } catch (err) {
+      console.error("Failed to update review visibility", err);
+      res.status(500).json({ message: "Failed to update review visibility." });
     }
-    console.error("Failed to create review", err);
-    res.status(500).json({ message: "Failed to create review" });
   }
-});
-
-router.patch("/:reviewerId/:eventId/visibility", verifyToken, isAdmin, async (req, res) => {
-  const { reviewerId, eventId } = req.params;
-  const parsedReviewerId = parsePositiveInt(reviewerId);
-  const parsedEventId = parsePositiveInt(eventId);
-  const visibilityInput = req.body?.visibility;
-
-  if (!parsedReviewerId || !parsedEventId) {
-    return res.status(400).json({ message: "Invalid reviewer or event id" });
-  }
-  if (typeof visibilityInput === "undefined") {
-    return res.status(400).json({ message: "visibility is required" });
-  }
-  const normalizedVisibility = coerceVisibility(visibilityInput);
-  if (normalizedVisibility === null) {
-    return res.status(400).json({ message: "visibility must be boolean-like" });
-  }
-
-  try {
-    const [result] = await db.query(
-      `UPDATE REVIEW SET visibility = ? WHERE reviewerId = ? AND eventId = ?`,
-      [Number(normalizedVisibility), parsedReviewerId, parsedEventId]
-    );
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Review not found" });
-    }
-    res.json({
-      message: normalizedVisibility ? "Review made visible" : "Review hidden from public view",
-      visibility: normalizedVisibility
-    });
-  } catch (err) {
-    console.error("Failed to update visibility", err);
-    res.status(500).json({ message: "Failed to update review visibility" });
-  }
-});
-
-router.put("/:reviewerId/:eventId", verifyToken, isUser, async (req, res) => {
-  const { reviewerId, eventId } = req.params;
-  const parsedReviewerId = parsePositiveInt(reviewerId);
-  const parsedEventId = parsePositiveInt(eventId);
-
-  if (!parsedReviewerId || !parsedEventId) {
-    return res.status(400).json({ message: "Invalid reviewer or event id" });
-  }
-  if (req.user.id !== parsedReviewerId) {
-    return res.status(403).json({ message: "Access denied" });
-  }
-  if (!req.body || Object.keys(req.body).length === 0) {
-    return res.status(400).json({ message: "No fields to update" });
-  }
-
-  const { starRating, content, visibility } = req.body;
-  const parsedRating = typeof starRating !== "undefined" ? parseStarRating(starRating) : undefined;
-  const trimmedContent =
-    typeof content !== "undefined" ? (typeof content === "string" ? content.trim() : "") : undefined;
-  const normalizedVisibility =
-    typeof visibility !== "undefined" ? coerceVisibility(visibility) : undefined;
-
-  if (typeof starRating !== "undefined" && parsedRating === null) {
-    return res.status(400).json({ message: "starRating must be an integer between 1 and 5" });
-  }
-  if (typeof content !== "undefined" && !trimmedContent) {
-    return res.status(400).json({ message: "content cannot be empty" });
-  }
-  if (typeof visibility !== "undefined" && normalizedVisibility === null) {
-    return res.status(400).json({ message: "visibility must be boolean-like" });
-  }
-
-  const fields = [];
-  const values = [];
-
-  if (typeof parsedRating !== "undefined") {
-    fields.push("starRating = ?");
-    values.push(parsedRating);
-  }
-  if (typeof trimmedContent !== "undefined") {
-    fields.push("content = ?");
-    values.push(trimmedContent);
-  }
-  if (typeof normalizedVisibility !== "undefined") {
-    fields.push("visibility = ?");
-    values.push(Number(normalizedVisibility));
-  }
-
-  if (!fields.length) {
-    return res
-      .status(400)
-      .json({ message: "Provide at least one of starRating, content, or visibility to update" });
-  }
-
-  values.push(parsedReviewerId, parsedEventId);
-
-  try {
-    const [result] = await db.query(
-      `UPDATE REVIEW SET ${fields.join(", ")} WHERE reviewerId = ? AND eventId = ?`,
-      values
-    );
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Review not found" });
-    }
-    res.json({ message: "Review updated" });
-  } catch (err) {
-    console.error("Failed to update review", err);
-    res.status(500).json({ message: "Failed to update review" });
-  }
-});
-
-router.delete("/:reviewerId/:eventId", verifyToken, isUser, async (req, res) => {
-  const { reviewerId, eventId } = req.params;
-  const parsedReviewerId = parsePositiveInt(reviewerId);
-  const parsedEventId = parsePositiveInt(eventId);
-
-  if (!parsedReviewerId || !parsedEventId) {
-    return res.status(400).json({ message: "Invalid reviewer or event id" });
-  }
-  if (req.user.id !== parsedReviewerId) {
-    return res.status(403).json({ message: "Access denied" });
-  }
-
-  try {
-    const [result] = await db.query(
-      "DELETE FROM REVIEW WHERE reviewerId = ? AND eventId = ?",
-      [parsedReviewerId, parsedEventId]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Review not found" });
-    }
-
-    res.json({ message: "Review deleted" });
-  } catch (err) {
-    console.error("Failed to delete review", err);
-    res.status(500).json({ message: "Failed to delete review" });
-  }
-});
+);
 
 export default router;

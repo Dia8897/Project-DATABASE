@@ -13,6 +13,7 @@ import clientRoutes from "./routes/clientRoutes.js";
 import trainingRoutes from "./routes/trainingRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
 import clothingRoutes from "./routes/clothingRoutes.js";
+import hostRoutes from "./routes/hostRoutes.js";
 
 dotenv.config();
 
@@ -48,8 +49,9 @@ app.use("/api/users", userRoutes);
 app.use("/api/admins", adminRoutes);
 app.use("/api/clients", clientRoutes);
 app.use("/api/trainings", trainingRoutes);
-app.use("/api/reviews", reviewRoutes);
+app.use("/api", reviewRoutes);
 app.use("/api/clothing", clothingRoutes);
+app.use("/api/hosts", hostRoutes);
 // Start server
 const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 5050;
 const MAX_PORT_SEARCH = 20;

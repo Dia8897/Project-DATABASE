@@ -5,6 +5,22 @@ import { verifyToken, isAdmin } from "../middleware/auth.js";
 // import { verify } from "jsonwebtoken";
 
 const router = Router();
+const HOST_RETURN_FIELDS =
+  "userId, fName, lName, email, phoneNb, age, gender, address, clothingSize, eligibility, isActive, codeOfConductAccepted, profilePic, description, createdAt, updatedAt";
+const CLIENT_FIELDS = [
+  "clientId",
+  "fName",
+  "lName",
+  "email",
+  "phoneNb",
+  "age",
+  "gender",
+  "address",
+  "createdAt",
+  "updatedAt",
+];
+const CLIENT_SELECT_WITH_ALIAS = CLIENT_FIELDS.map((field) => `c.${field}`).join(", ");
+const CLIENT_SELECT = CLIENT_FIELDS.join(", ");
 
 // GET all event requests with client information (with optional status filter)
 router.get("/event-requests", verifyToken, isAdmin, async (req, res) => {
@@ -61,6 +77,150 @@ router.get("/stats", verifyToken, isAdmin, async (req, res) => {
   } catch (err) {
     console.error("Failed to fetch stats", err);
     res.status(500).json({ message: "Failed to fetch stats" });
+  }
+});
+
+router.get("/hosts/pending", verifyToken, isAdmin, async (_req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT ${HOST_RETURN_FIELDS}
+         FROM USERS
+        WHERE eligibility = 'pending'
+        ORDER BY createdAt DESC`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("Failed to fetch pending hosts", err);
+    res.status(500).json({ message: "Failed to fetch pending hosts" });
+  }
+});
+
+router.get("/clients", verifyToken, isAdmin, async (_req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT ${CLIENT_SELECT_WITH_ALIAS},
+              COUNT(e.eventId) AS eventCount,
+              MAX(e.updatedAt) AS lastEventAt
+         FROM CLIENTS c
+    LEFT JOIN EVENTS e ON e.clientId = c.clientId
+     GROUP BY c.clientId
+     ORDER BY c.createdAt DESC`
+    );
+    const normalized = rows.map((row) => ({
+      ...row,
+      eventCount: Number(row.eventCount || 0),
+    }));
+    res.json(normalized);
+  } catch (err) {
+    console.error("Failed to fetch clients", err);
+    res.status(500).json({ message: "Failed to fetch clients." });
+  }
+});
+
+router.get("/clients/:clientId", verifyToken, isAdmin, async (req, res) => {
+  const clientId = Number(req.params.clientId);
+  if (!Number.isInteger(clientId) || clientId <= 0) {
+    return res.status(400).json({ message: "Invalid client id" });
+  }
+
+  try {
+    const [clientRows] = await db.query(
+      `SELECT ${CLIENT_SELECT}
+         FROM CLIENTS
+        WHERE clientId = ?`,
+      [clientId]
+    );
+    if (!clientRows.length) {
+      return res.status(404).json({ message: "Client not found." });
+    }
+
+    const [events] = await db.query(
+      `SELECT eventId, type, status, startsAt, endsAt, location, createdAt
+         FROM EVENTS
+        WHERE clientId = ?
+     ORDER BY createdAt DESC`,
+      [clientId]
+    );
+
+    res.json({
+      ...clientRows[0],
+      events,
+    });
+  } catch (err) {
+    console.error("Failed to fetch client details", err);
+    res.status(500).json({ message: "Failed to fetch client details." });
+  }
+});
+
+const fetchHostById = async (userId) => {
+  const [rows] = await db.query(
+    `SELECT ${HOST_RETURN_FIELDS}
+       FROM USERS
+      WHERE userId = ?`,
+    [userId]
+  );
+  return rows[0];
+};
+
+router.patch("/hosts/:userId/approve", verifyToken, isAdmin, async (req, res) => {
+  const userId = Number(req.params.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ message: "Invalid user id" });
+  }
+
+  try {
+    const host = await fetchHostById(userId);
+    if (!host) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!host.codeOfConductAccepted) {
+      return res.status(400).json({ message: "User must accept Code of Conduct before approval." });
+    }
+
+    await db.query(
+      `UPDATE USERS
+          SET eligibility = 'approved',
+              isActive = 1,
+              updatedAt = NOW()
+        WHERE userId = ?`,
+      [userId]
+    );
+
+    const updated = await fetchHostById(userId);
+    res.json({ message: "Host approved.", user: updated });
+  } catch (err) {
+    console.error("Failed to approve host", err);
+    res.status(500).json({ message: "Failed to approve host" });
+  }
+});
+
+router.patch("/hosts/:userId/block", verifyToken, isAdmin, async (req, res) => {
+  const userId = Number(req.params.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ message: "Invalid user id" });
+  }
+
+  try {
+    const host = await fetchHostById(userId);
+    if (!host) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    await db.query(
+      `UPDATE USERS
+          SET eligibility = 'blocked',
+              isActive = 0,
+              updatedAt = NOW()
+        WHERE userId = ?`,
+      [userId]
+    );
+
+    const updated = await fetchHostById(userId);
+    res.json({ message: "Host blocked.", user: updated });
+  } catch (err) {
+    console.error("Failed to block host", err);
+    res.status(500).json({ message: "Failed to block host" });
   }
 });
 
