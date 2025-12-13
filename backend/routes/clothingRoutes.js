@@ -1,11 +1,10 @@
 import { Router } from "express";
 import db from "../config/db.js";
-import { verifyToken } from "../middleware/auth.js";
 
 const router = Router();
 
-// Get all available clothing items (for clients to choose)
-router.get("/", verifyToken, async (req, res) => {
+// Get all available clothing items (public)
+router.get("/", async (req, res) => {
   try {
     const [rows] = await db.query(`
       SELECT c.clothesId, c.clothingLabel, c.picture, c.description,

@@ -40,6 +40,10 @@ const normalizeApplication = (app) => {
     appliedDate: formatDate(app.sentAt),
     description: app.notes || app.applicantDescription || FALLBACK_DESCRIPTION,
     requestedRole: app.requestedRole,
+    requestDress:
+      app.requestDress === true ||
+      app.requestDress === "true" ||
+      Number(app.requestDress) === 1,
   };
 };
 
@@ -257,6 +261,18 @@ export default function HostApplications() {
                           <div>
                             <p className="text-xs uppercase text-gray-400 tracking-widest">Phone</p>
                             <p className="font-medium">{app.phone}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3 text-gray-700">
+                          <Award size={18} className="text-ocean" />
+                          <div>
+                            <p className="text-xs uppercase text-gray-400 tracking-widest">
+                              Outfit
+                            </p>
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cream text-gray-800 font-semibold border border-gray-200">
+                              <span className={`h-2 w-2 rounded-full ${app.requestDress ? "bg-ocean" : "bg-gray-400"}`}></span>
+                              {app.requestDress ? "Dress requested" : "No dress requested"}
+                            </div>
                           </div>
                         </div>
                       </div>

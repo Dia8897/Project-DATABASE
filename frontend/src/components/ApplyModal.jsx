@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../services/api";
 
 const getEmptyManualApplicant = () => ({
@@ -28,6 +28,9 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
   const [requestDress, setRequestDress] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [resolvedOutfit, setResolvedOutfit] = useState(null);
+  const [outfitError, setOutfitError] = useState("");
+  const [outfitLoading, setOutfitLoading] = useState(false);
 
   const languageOptions = Array.from(
     new Set([
@@ -96,6 +99,34 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
     return Object.keys(nextErrors).length === 0;
   };
 
+  const resolvePicture = useCallback((picture) => {
+    const origin = (api.defaults.baseURL || "").replace(/\/api$/, "");
+    if (!picture) return picture;
+    if (picture.startsWith("http")) return picture;
+    if (picture.startsWith("/")) return `${origin}${picture}`;
+    return `${origin}/${picture}`;
+  }, []);
+
+  const eventOutfit = useMemo(() => {
+    if (resolvedOutfit) return resolvedOutfit;
+    if (event?.outfit) {
+      return {
+        ...event.outfit,
+        picture: resolvePicture(event.outfit.picture),
+      };
+    }
+    if (event?.clothingLabel || event?.clothesId) {
+      return {
+        clothesId: event.clothesId,
+        label: event.clothingLabel,
+        picture: resolvePicture(event.clothingPicture),
+        description: event.clothingDescription,
+        stockInfo: event.clothingStockInfo || null,
+      };
+    }
+    return null;
+  }, [event, resolvedOutfit, resolvePicture]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitting) return;
@@ -107,7 +138,8 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
       const response = await api.post('/applications', {
         requestedRole,
         notes: form.motivation.trim(),
-        eventId: event.eventId
+        eventId: event.eventId,
+        requestDress,
       });
 
       const payload = {
@@ -137,6 +169,39 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
     setRequestDress(false);
     setErrors({});
   }, [buildFormFromProfile, currentUser]);
+
+  useEffect(() => {
+    setResolvedOutfit(null);
+    setOutfitError("");
+  }, [event?.eventId]);
+
+  useEffect(() => {
+    const fetchOutfit = async () => {
+      if (resolvedOutfit || !event?.clothesId) return;
+      setOutfitLoading(true);
+      setOutfitError("");
+      try {
+        const { data } = await api.get("/clothing");
+        const match = (data || []).find(
+          (item) => Number(item.clothesId) === Number(event.clothesId)
+        );
+        if (match) {
+          setResolvedOutfit({
+            clothesId: match.clothesId,
+            label: match.clothingLabel,
+            picture: resolvePicture(match.picture),
+            description: match.description,
+            stockInfo: match.stockInfo || match.clothingStockInfo || null,
+          });
+        }
+      } catch (err) {
+        setOutfitError(err?.response?.data?.message || "Unable to load outfit");
+      } finally {
+        setOutfitLoading(false);
+      }
+    };
+    fetchOutfit();
+  }, [event?.clothesId, resolvedOutfit, resolvePicture]);
 
   if (!event) return null;
 
@@ -368,15 +433,43 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
               />
             </div>
 
-            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={requestDress}
-                onChange={(e) => setRequestDress(e.target.checked)}
-                className="rounded border-gray-300"
-              />
-              <span>Request dress for this event</span>
-            </label>
+            <div className="space-y-2">
+              {eventOutfit && (
+                <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-cream p-3">
+                  {eventOutfit.picture && (
+                    <div className="h-14 w-14 rounded-lg overflow-hidden bg-white flex-shrink-0">
+                      <img
+                        src={eventOutfit.picture}
+                        alt={eventOutfit.label}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-gray-900">
+                      {eventOutfit.label || "Event outfit"}
+                    </p>
+                    <p className="text-xs text-gray-600 line-clamp-2">
+                      {eventOutfit.description || "Provided by the client"}
+                    </p>
+                    {eventOutfit.stockInfo && (
+                      <p className="text-[0.65rem] uppercase tracking-wide text-ocean">
+                        Stock: {eventOutfit.stockInfo}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={requestDress}
+                  onChange={(e) => setRequestDress(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span>Request dress for this event</span>
+              </label>
+            </div>
 
             <label className="flex items-start gap-2 text-sm text-gray-600 bg-cream p-3 rounded-xl border border-gray-200">
               <input

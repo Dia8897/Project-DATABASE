@@ -26,7 +26,7 @@ export default function EventDetailsModal({
   const info = [
     { label: "Date", value: event.date || "TBA" },
     { label: "Location", value: event.location || "TBA" },
-    { label: "Dress code", value: event.dressCode || "Not specified" },
+    { label: "Dress code", value: event.outfit?.label || event.dressCode || "Not specified" },
     { label: "Hosts requested", value: `${filled} / ${requested || "?"}` },
   ];
 
@@ -74,6 +74,31 @@ export default function EventDetailsModal({
           <p className="text-gray-700 leading-relaxed">
             {event.description || event.shortDescription || "More details coming soon."}
           </p>
+
+          {event.outfit && (
+            <div className="bg-cream rounded-2xl p-4 border border-gray-100 flex items-center gap-4">
+              {event.outfit.picture && (
+                <div className="h-20 w-20 rounded-xl overflow-hidden bg-white flex-shrink-0">
+                  <img
+                    src={event.outfit.picture}
+                    alt={event.outfit.label}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              )}
+              <div className="space-y-1">
+                <p className="text-sm uppercase tracking-wide text-ocean font-semibold">
+                  Event outfit
+                </p>
+                <p className="text-base font-semibold text-gray-900">
+                  {event.outfit.label || "Provided outfit"}
+                </p>
+                {event.outfit.description && (
+                  <p className="text-sm text-gray-600">{event.outfit.description}</p>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-cream rounded-2xl p-4">
             {info.map(({ label, value }) => (

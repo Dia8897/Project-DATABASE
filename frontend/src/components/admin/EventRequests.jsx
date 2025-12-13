@@ -43,6 +43,14 @@ const normalizeRequest = (request) => {
     description: request.description || "No description provided.",
     status: toTitleCase(request.status || "pending"),
     submittedDate: formatDate(request.createdAt),
+    outfit: request.clothingLabel
+      ? {
+          label: request.clothingLabel,
+          picture: request.clothingPicture,
+          description: request.clothingDescription,
+          stockInfo: request.clothingStockInfo || null,
+        }
+      : null,
   };
 };
 
@@ -113,7 +121,12 @@ export default function EventRequests() {
         const { data } = await api.get("/admins/event-requests", { params });
         if (!cancelled) {
           const hydrated = await hydrateRequests(data);
-          setRequests(hydrated);
+          const resolved = hydrated.map((req) =>
+            req?.outfit?.picture
+              ? { ...req, outfit: { ...req.outfit, picture: resolvePicture(req.outfit.picture) } }
+              : req
+          );
+          setRequests(resolved);
         }
       } catch (err) {
         if (!cancelled) {
@@ -130,6 +143,14 @@ export default function EventRequests() {
   }, [activeFilter]);
 
   const statusFilters = ["all", "pending", "accepted", "rejected"];
+
+  const resolvePicture = (picture) => {
+    const origin = (api.defaults.baseURL || "").replace(/\/api$/, "");
+    if (!picture) return picture;
+    if (picture.startsWith("http")) return picture;
+    if (picture.startsWith("/")) return `${origin}${picture}`;
+    return `${origin}/${picture}`;
+  };
 
   const filteredRequests = requests; // No client-side filtering needed since API does it
 
@@ -326,6 +347,33 @@ export default function EventRequests() {
                       </div>
                     </div>
 
+                    {request.outfit && (
+                      <div className="rounded-2xl border border-gray-100 p-4 flex gap-3 items-center">
+                        {request.outfit.picture && (
+                          <div className="h-16 w-16 rounded-xl overflow-hidden bg-cream flex-shrink-0">
+                            <img
+                              src={request.outfit.picture}
+                              alt={request.outfit.label}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          <p className="text-xs uppercase tracking-wide text-ocean font-semibold">
+                            Outfit requested
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {request.outfit.label}
+                          </p>
+                          {request.outfit.description && (
+                            <p className="text-xs text-gray-600 line-clamp-2">
+                              {request.outfit.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-600">
                       <div className="flex items-center gap-2">
                         <Calendar size={16} className="text-ocean" />
@@ -463,6 +511,33 @@ export default function EventRequests() {
                 <p className="text-xs text-gray-500">Event Type: {detailModal.type}</p>
               </div>
 
+              {detailModal.outfit && (
+                <div className="rounded-2xl border border-gray-100 p-4 flex gap-4 items-center">
+                  {detailModal.outfit.picture && (
+                    <div className="h-20 w-20 rounded-xl overflow-hidden bg-cream flex-shrink-0">
+                      <img
+                        src={detailModal.outfit.picture}
+                        alt={detailModal.outfit.label}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    <p className="text-xs uppercase tracking-wide text-ocean font-semibold">
+                      Requested outfit
+                    </p>
+                    <p className="text-base font-semibold text-gray-900">
+                      {detailModal.outfit.label}
+                    </p>
+                    {detailModal.outfit.description && (
+                      <p className="text-sm text-gray-600">
+                        {detailModal.outfit.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Applications Section - Only show for accepted events */}
               {detailModal.status === "Accepted" && (
                 <div className="rounded-2xl border border-gray-100 p-4 space-y-4">
@@ -481,6 +556,11 @@ export default function EventRequests() {
                     <div className="space-y-3 max-h-96 overflow-y-auto">
                       {eventApplications.map((app) => {
                         const isPending = app.status === "pending";
+                        const requestedDress = Boolean(
+                          app.requestDress === true ||
+                            app.requestDress === "true" ||
+                            Number(app.requestDress) === 1
+                        );
                         return (
                           <div key={app.eventAppId} className="border border-gray-200 rounded-lg p-4 space-y-3">
                             <div className="flex items-start justify-between">
@@ -493,6 +573,16 @@ export default function EventRequests() {
                                 </p>
                                 {app.notes && (
                                   <p className="text-xs text-gray-600 italic mt-1">"{app.notes}"</p>
+                                )}
+                                {requestedDress ? (
+                                  <span className="mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-cream text-ocean text-xs font-semibold">
+                                    <span className="h-2 w-2 rounded-full bg-ocean"></span>
+                                    Dress requested
+                                  </span>
+                                ) : (
+                                  <span className="mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
+                                    No dress request
+                                  </span>
                                 )}
                               </div>
                               <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ml-3 ${

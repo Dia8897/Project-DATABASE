@@ -81,7 +81,21 @@ router.get("/:id", verifyToken, isAdmin, async (req, res) => {
 router.get("/me/events", verifyToken, isClient, async (req, res) => {
   try {
     const [rows] = await db.query(
-      "SELECT * FROM EVENTS WHERE clientId = ? ORDER BY startsAt DESC",
+      `SELECT e.*,
+              cl.clothingLabel AS clothingLabel,
+              cl.picture       AS clothingPicture,
+              cl.description   AS clothingDescription,
+              cs.stockInfo     AS clothingStockInfo
+         FROM EVENTS e
+    LEFT JOIN CLOTHING cl ON cl.clothesId = e.clothesId
+    LEFT JOIN (
+              SELECT clothingId,
+                     GROUP_CONCAT(CONCAT(size, ':', stockQty) SEPARATOR ', ') AS stockInfo
+                FROM CLOTHING_STOCK
+            GROUP BY clothingId
+             ) cs ON cs.clothingId = e.clothesId
+        WHERE e.clientId = ?
+     ORDER BY e.startsAt DESC`,
       [req.user.id]
     );
     res.json(rows);

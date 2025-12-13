@@ -34,6 +34,11 @@ const normalizeEvent = (event = {}) => {
   const normalizedStatus = event.status || "pending";
   return {
     ...event,
+    clothesId: event.clothesId || event.clothes_id || null,
+    clothingLabel: event.clothingLabel || event.clothing_label || null,
+    clothingPicture: event.clothingPicture || event.clothing_picture || null,
+    clothingDescription: event.clothingDescription || event.clothing_description || null,
+    clothingStockInfo: event.clothingStockInfo || event.clothing_stock_info || null,
     startsAt,
     date: event.date || formatDate(startsAt),
     category: event.category || normalizeCategory(event.type),
@@ -167,6 +172,14 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [role, setRole] = useState(null);
+  const [clothing, setClothing] = useState([]);
+  const resolvePicture = (picture) => {
+    const origin = (api.defaults.baseURL || "").replace(/\/api$/, "");
+    if (!picture) return picture;
+    if (picture.startsWith("http")) return picture;
+    if (picture.startsWith("/")) return `${origin}${picture}`;
+    return `${origin}/${picture}`;
+  };
 
   const [isApplyOpen, setIsApplyOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -179,8 +192,55 @@ export default function EventsPage() {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
+        let clothingData = [];
+        try {
+          const clothingRes = await api.get("/clothing");
+          clothingData = (clothingRes.data || []).map((c) => ({
+            ...c,
+            picture: resolvePicture(c.picture),
+          }));
+          setClothing(clothingData);
+        } catch (clothingErr) {
+          // Clothing endpoint requires auth; if it fails, continue with events only
+          setClothing([]);
+        }
+
         const response = await api.get("/events");
-        setEvents(response.data.map(normalizeEvent));
+        const clothingMap = new Map(
+          clothingData.map((c) => [
+            Number(c.clothesId),
+            {
+              clothesId: c.clothesId,
+              label: c.clothingLabel,
+              picture: c.picture,
+              description: c.description,
+              stockInfo: c.stockInfo || c.clothingStockInfo || null,
+            },
+          ])
+        );
+
+        setEvents(
+          response.data.map((raw) => {
+            const normalized = normalizeEvent(raw);
+            const mapOutfit =
+              normalized.clothesId && clothingMap.has(Number(normalized.clothesId))
+                ? clothingMap.get(Number(normalized.clothesId))
+                : null;
+            const inlineOutfit = normalized.clothingLabel
+              ? {
+                  clothesId: normalized.clothesId,
+                  label: normalized.clothingLabel,
+                  picture: resolvePicture(normalized.clothingPicture),
+                  description: normalized.clothingDescription,
+                  stockInfo: normalized.clothingStockInfo || null,
+                }
+              : null;
+            return {
+              ...normalized,
+              outfit: mapOutfit || inlineOutfit || null,
+            };
+          })
+        );
       } catch (err) {
         setError("Failed to fetch events");
         setEvents(DEMO_EVENTS.map(normalizeEvent)); // Fallback to demo data
@@ -492,7 +552,7 @@ export default function EventsPage() {
                         {event.shortDescription}
                       </p>
                       <div className="text-xs uppercase tracking-wide text-gray-500">
-                        Dress: {event.dressCode || "Not set"} · Roles: {event.acceptedHostsCount}/{event.nbOfHosts || "?"}
+                        Dress: {event.outfit?.label || event.dressCode || "Not set"} · Roles: {event.acceptedHostsCount}/{event.nbOfHosts || "?"}
                       </div>
                       <div className="flex gap-2 pt-1 mt-auto">
                         <button
@@ -581,4 +641,3 @@ export default function EventsPage() {
     </main>
   );
 }
-

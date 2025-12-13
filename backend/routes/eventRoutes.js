@@ -9,7 +9,21 @@ const HAS_TIME = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?/;
 // List all accepted events (public)
 router.get("/", async (_req, res) => {
   try {
-    const [rows] = await db.query("SELECT * FROM EVENTS WHERE status = 'accepted'");
+    const [rows] = await db.query(`
+      SELECT e.*,
+             c.clothingLabel AS clothingLabel,
+             c.picture       AS clothingPicture,
+             c.description   AS clothingDescription,
+             cs.stockInfo    AS clothingStockInfo
+        FROM EVENTS e
+   LEFT JOIN CLOTHING c ON c.clothesId = e.clothesId
+   LEFT JOIN (
+              SELECT clothingId,
+                     GROUP_CONCAT(CONCAT(size, ':', stockQty) SEPARATOR ', ') AS stockInfo
+                FROM CLOTHING_STOCK
+            GROUP BY clothingId
+             ) cs ON cs.clothingId = e.clothesId
+       WHERE e.status = 'accepted'`);
     res.json(rows);
   } catch (err) {
     console.error("Failed to fetch events", err);
@@ -29,10 +43,21 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
       `SELECT e.*, 
               c.fName AS clientFirstName, c.lName AS clientLastName,
               c.email AS clientEmail, c.phoneNb AS clientPhone, c.address AS clientAddress,
-              tl.fName AS tlFirstName, tl.lName AS tlLastName
+              tl.fName AS tlFirstName, tl.lName AS tlLastName,
+              cl.clothingLabel AS clothingLabel,
+              cl.picture       AS clothingPicture,
+              cl.description   AS clothingDescription,
+              cs.stockInfo     AS clothingStockInfo
          FROM EVENTS e
     LEFT JOIN CLIENTS c ON c.clientId = e.clientId
     LEFT JOIN USERS tl ON tl.userId = e.teamLeaderId
+    LEFT JOIN CLOTHING cl ON cl.clothesId = e.clothesId
+    LEFT JOIN (
+              SELECT clothingId,
+                     GROUP_CONCAT(CONCAT(size, ':', stockQty) SEPARATOR ', ') AS stockInfo
+                FROM CLOTHING_STOCK
+            GROUP BY clothingId
+             ) cs ON cs.clothingId = e.clothesId
         WHERE e.eventId = ?`,
       [eventId]
     );
@@ -128,6 +153,15 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
         status: event.status,
         teamLeaderId: event.teamLeaderId,
         teamLeaderName: teamLeaderName || null,
+        outfit: event.clothingLabel
+          ? {
+              clothesId: event.clothesId,
+              label: event.clothingLabel,
+              picture: event.clothingPicture,
+              description: event.clothingDescription,
+              stockInfo: event.clothingStockInfo || null,
+            }
+          : null,
       },
       client,
       hosts: hostRows.map((host) => ({
@@ -198,7 +232,20 @@ router.get("/:id", async (req, res) => {
   const { id } = req.params;
   try {
     const [rows] = await db.query(
-      "SELECT * FROM EVENTS WHERE eventId = ? AND status = 'accepted'",
+      `SELECT e.*,
+              cl.clothingLabel AS clothingLabel,
+              cl.picture       AS clothingPicture,
+              cl.description   AS clothingDescription,
+              cs.stockInfo     AS clothingStockInfo
+         FROM EVENTS e
+    LEFT JOIN CLOTHING cl ON cl.clothesId = e.clothesId
+    LEFT JOIN (
+              SELECT clothingId,
+                     GROUP_CONCAT(CONCAT(size, ':', stockQty) SEPARATOR ', ') AS stockInfo
+                FROM CLOTHING_STOCK
+            GROUP BY clothingId
+             ) cs ON cs.clothingId = e.clothesId
+        WHERE e.eventId = ? AND e.status = 'accepted'`,
       [id]
     );
     if (!rows.length) return res.status(404).json({ message: "Event not found" });
@@ -354,7 +401,9 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   add("attendeesList", attendeesList ?? null);
   add("rate", rate ?? null);
   add("teamLeaderId", teamLeaderId ?? null);
-  add("clothesId", clothesId ?? null);
+  if (Object.prototype.hasOwnProperty.call(req.body, "clothesId")) {
+    add("clothesId", clothesId ?? null);
+  }
 
   if (typeof status !== "undefined") {
     fields.push("status = ?");

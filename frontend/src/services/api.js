@@ -32,4 +32,8 @@ export const userAPI = {
   getUser: (id) => api.get(`/users/${id}`),
 };
 
+export const clothingAPI = {
+  getClothing: () => api.get('/clothing'),
+};
+
 export default api;

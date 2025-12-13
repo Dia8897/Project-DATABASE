@@ -24,10 +24,19 @@ router.get("/event-requests", verifyToken, isAdmin, async (req, res) => {
               c.lName AS clientLastName,
               c.email AS clientEmail,
               c.phoneNb AS clientPhone,
-              cl.clothingLabel, cl.picture AS clothingPicture, cl.description AS clothingDescription
+              cl.clothingLabel,
+              cl.picture       AS clothingPicture,
+              cl.description   AS clothingDescription,
+              cs.stockInfo     AS clothingStockInfo
          FROM EVENTS e
     LEFT JOIN CLIENTS c ON c.clientId = e.clientId
     LEFT JOIN CLOTHING cl ON cl.clothesId = e.clothesId
+    LEFT JOIN (
+              SELECT clothingId,
+                     GROUP_CONCAT(CONCAT(size, ':', stockQty) SEPARATOR ', ') AS stockInfo
+                FROM CLOTHING_STOCK
+            GROUP BY clothingId
+             ) cs ON cs.clothingId = e.clothesId
         ${whereClause}
         ORDER BY e.createdAt DESC`,
       params
@@ -372,13 +381,58 @@ router.get("/host-applications", verifyToken, isAdmin, async (req, res) => {
 router.put("/host-applications/:id/approve", verifyToken, isAdmin, async (req, res) => {
   const { id } = req.params;
   try {
+    // Fetch application with user size, event clothing, and requestDress flag
+    const [appRows] = await db.query(
+      `SELECT ea.status,
+              ea.requestDress,
+              ea.senderId,
+              ea.eventId,
+              u.clothingSize,
+              e.clothesId
+         FROM EVENT_APP ea
+         JOIN USERS u ON u.userId = ea.senderId
+    LEFT JOIN EVENTS e ON e.eventId = ea.eventId
+        WHERE ea.eventAppId = ?`,
+      [id]
+    );
+
+    if (!appRows.length) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const app = appRows[0];
+    if (app.status !== "pending") {
+      return res.status(400).json({ message: "Application already processed" });
+    }
+
+    // If dress is requested, ensure stock is available for the user's size
+    if (app.requestDress && app.clothesId && app.clothingSize) {
+      const [stockRows] = await db.query(
+        "SELECT stockQty FROM CLOTHING_STOCK WHERE clothingId = ? AND size = ?",
+        [app.clothesId, app.clothingSize]
+      );
+      const stockQty = stockRows[0]?.stockQty ?? 0;
+      if (stockQty <= 0) {
+        return res
+          .status(409)
+          .json({ message: "Insufficient stock for requested dress size" });
+      }
+
+      await db.query(
+        "UPDATE CLOTHING_STOCK SET stockQty = stockQty - 1 WHERE clothingId = ? AND size = ?",
+        [app.clothesId, app.clothingSize]
+      );
+    }
+
     const [result] = await db.query(
       "UPDATE EVENT_APP SET status = 'accepted', adminId = ?, decidedAt = NOW() WHERE eventAppId = ? AND status = 'pending'",
       [req.user.id, id]
     );
+
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Application not found or already processed" });
     }
+
     res.json({ message: "Application approved" });
   } catch (err) {
     console.error("Failed to approve application", err);

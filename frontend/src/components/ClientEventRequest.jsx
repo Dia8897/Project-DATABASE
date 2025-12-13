@@ -31,12 +31,15 @@ export default function ClientEventRequest({
   guests,
   location,
   description,
+  clothingOptions = [],
+  selectedClothesId = null,
   onTypeChange,
   onStartChange,
   onEndChange,
   onGuestsChange,
   onLocationChange,
   onDescriptionChange,
+  onClothesChange,
   onSubmit,
   submitting = false,
   errorMessage = "",
@@ -98,6 +101,68 @@ export default function ClientEventRequest({
             {errorMessage && (
               <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm px-4 py-3">
                 {errorMessage}
+              </div>
+            )}
+
+            {clothingOptions.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-ocean font-semibold">
+                      Outfit
+                    </p>
+                    <p className="text-sm text-gray-700">Pick the dress/uniform for this event</p>
+                  </div>
+                  {selectedClothesId && (
+                    <button
+                      type="button"
+                      onClick={() => onClothesChange?.(null)}
+                      className="text-xs font-semibold text-gray-600 hover:text-ocean"
+                      disabled={submitting}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {clothingOptions.map((item) => {
+                    const isActive = Number(selectedClothesId) === Number(item.clothesId);
+                    return (
+                      <button
+                        key={item.clothesId}
+                        type="button"
+                        onClick={() => onClothesChange?.(item.clothesId)}
+                        className={`flex items-center gap-3 p-3 rounded-2xl border text-left transition ${
+                          isActive
+                            ? "border-ocean bg-white shadow-md"
+                            : "border-gray-200 bg-white hover:border-ocean/50"
+                        }`}
+                        disabled={submitting}
+                      >
+                        {item.picture && (
+                          <div className="h-16 w-16 rounded-xl overflow-hidden bg-cream flex-shrink-0">
+                            <img
+                              src={item.picture}
+                              alt={item.clothingLabel}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-gray-900">{item.clothingLabel}</p>
+                          <p className="text-xs text-gray-600 line-clamp-2">
+                            {item.description || "Standard uniform"}
+                          </p>
+                          {item.stockInfo && (
+                            <p className="text-[0.7rem] uppercase tracking-wide text-ocean">
+                              {item.stockInfo}
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

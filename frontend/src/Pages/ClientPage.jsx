@@ -4,7 +4,7 @@ import Footer from "../components/Footer";
 import ClientEventList from "../components/ClientEventList";
 import ClientEventRequest from "../components/ClientEventRequest";
 import ClientProfileHeader from "../components/client/ClientProfileHeader";
-import api from "../services/api";
+import api, { clothingAPI } from "../services/api";
 
 import wedding from "../pics/wedding.png";
 import birthday from "../pics/birthday.png";
@@ -55,6 +55,17 @@ export default function ClientPage() {
   const [savingProfilePic, setSavingProfilePic] = useState(false);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [clothingOptions, setClothingOptions] = useState([]);
+  const [clothingError, setClothingError] = useState("");
+  const [selectedClothesId, setSelectedClothesId] = useState(null);
+
+  const resolvePicture = (picture) => {
+    const origin = (api.defaults.baseURL || "").replace(/\/api$/, "");
+    if (!picture) return picture;
+    if (picture.startsWith("http")) return picture;
+    if (picture.startsWith("/")) return `${origin}${picture}`;
+    return `${origin}/${picture}`;
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
@@ -70,6 +81,22 @@ export default function ClientPage() {
 
   useEffect(() => {
     let active = true;
+    const loadClothing = async () => {
+      try {
+        const res = await clothingAPI.getClothing();
+        if (!active) return;
+        const normalized = (res.data || []).map((item) => ({
+          ...item,
+          picture: resolvePicture(item.picture),
+        }));
+        setClothingOptions(normalized);
+      } catch (err) {
+        if (!active) return;
+        const message = err?.response?.data?.message || "Unable to load outfits";
+        setClothingError(message);
+      }
+    };
+
     const loadEvents = async () => {
       setLoading(true);
       setEventsError("");
@@ -94,6 +121,7 @@ export default function ClientPage() {
         if (active) setLoading(false);
       }
     };
+    loadClothing();
     loadEvents();
     return () => {
       active = false;
@@ -127,6 +155,7 @@ export default function ClientPage() {
       startsAt: toMySqlDateTime(startDateTime),
       endsAt: toMySqlDateTime(endDateTime),
       nbOfHosts: Number(guests),
+      clothesId: selectedClothesId || null,
     };
 
     try {
@@ -148,6 +177,7 @@ export default function ClientPage() {
       setDescription("");
       setLocation("");
       setGuests("");
+      setSelectedClothesId(null);
     } catch (err) {
       const message = err?.response?.data?.message || err.message || "Failed to submit request";
       setFormError(message);
@@ -290,15 +320,18 @@ export default function ClientPage() {
                 guests={guests}
                 location={location}
                 description={description}
+                clothingOptions={clothingOptions}
+                selectedClothesId={selectedClothesId}
                 onTypeChange={setEventType}
                 onStartChange={setStartDateTime}
                 onEndChange={setEndDateTime}
                 onGuestsChange={setGuests}
                 onLocationChange={setLocation}
                 onDescriptionChange={setDescription}
+                onClothesChange={setSelectedClothesId}
                 onSubmit={handleCreateRequest}
                 submitting={submitting}
-                errorMessage={formError}
+                errorMessage={formError || clothingError}
               />
             ) : activeTab === "settings" ? (
               <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-8 space-y-10">
