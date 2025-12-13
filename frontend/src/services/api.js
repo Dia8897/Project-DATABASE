@@ -25,7 +25,14 @@ export const adminAPI = {
   getHostApplications: () => api.get('/applications'),
   getApplicationsForEvent: (eventId) => api.get(`/applications/event/${eventId}`),
   approveHostApplication: (id, assignedRole) => api.put(`/applications/${id}`, { status: 'accepted', assignedRole }),
-  rejectHostApplication: (id) => api.put(`/applications/${id}`, { status: 'rejected' })
+  rejectHostApplication: (id) => api.put(`/applications/${id}`, { status: 'rejected' }),
+
+  // Host lifecycle
+  listPendingHosts: () => api.get('/admins/hosts/pending'),
+  approveHostAccount: (userId) => api.patch(`/admins/hosts/${userId}/approve`),
+  blockHostAccount: (userId) => api.patch(`/admins/hosts/${userId}/block`),
+  listClients: () => api.get('/admins/clients'),
+  getClientDetails: (clientId) => api.get(`/admins/clients/${clientId}`),
 };
 
 export const userAPI = {
@@ -34,6 +41,22 @@ export const userAPI = {
 
 export const clothingAPI = {
   getClothing: () => api.get('/clothing'),
+};
+
+export const hostAPI = {
+  signupHost: (payload) => api.post('/auth/signup/host', payload),
+  acceptCodeOfConduct: (userId) => api.post('/hosts/code-of-conduct/accept', { userId }),
+};
+
+export const clientAPI = {
+  signupClient: (payload) => api.post('/auth/signup/client', payload),
+};
+
+export const reviewAPI = {
+  getEventReviews: (eventId) => api.get(`/events/${eventId}/reviews`),
+  submitTeamLeaderReview: (eventId, payload) => api.post(`/host/events/${eventId}/review`, payload),
+  updateReviewVisibility: (eventId, reviewerId, visibility) =>
+    api.patch(`/admin/events/${eventId}/reviews/${reviewerId}/visibility`, { visibility }),
 };
 
 export default api;

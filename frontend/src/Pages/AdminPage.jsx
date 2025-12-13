@@ -5,6 +5,7 @@ import Footer from "../components/Footer";
 import AdminStats from "../components/admin/AdminStats";
 import EventRequests from "../components/admin/EventRequests";
 import HostApplications from "../components/admin/HostApplications";
+import ClientDirectory from "../components/admin/ClientDirectory";
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("events");
@@ -42,12 +43,28 @@ export default function AdminPage() {
             >
               Host Applications
             </button>
+            <button
+              onClick={() => setActiveTab("clients")}
+              className={`flex-1 px-6 py-4 rounded-2xl text-base font-semibold transition ${
+                activeTab === "clients"
+                  ? "bg-ocean text-white shadow-md"
+                  : "bg-transparent text-gray-700 hover:bg-cream"
+              }`}
+            >
+              Clients
+            </button>
           </div>
         </div>
       </section>
 
       {/* Content based on active tab */}
-      {activeTab === "events" ? <EventRequests /> : <HostApplications />}
+      {activeTab === "events" ? (
+        <EventRequests />
+      ) : activeTab === "hosts" ? (
+        <HostApplications />
+      ) : (
+        <ClientDirectory />
+      )}
 
       <Footer />
     </main>

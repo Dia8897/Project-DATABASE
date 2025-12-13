@@ -87,6 +87,7 @@ export default function Navbar() {
             localStorage.removeItem("token");
             localStorage.removeItem("user");
             localStorage.removeItem("userRole");
+            localStorage.removeItem("role");
             window.dispatchEvent(new Event(AUTH_EVENT));
         }
         setSession(readSession());

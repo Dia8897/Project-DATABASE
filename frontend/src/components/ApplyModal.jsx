@@ -9,6 +9,13 @@ const getEmptyManualApplicant = () => ({
 });
 
 export default function ApplyModal({ event, onClose, onSubmitted, currentUser }) {
+  const canSubmitWithProfile =
+    currentUser &&
+    currentUser.role === "user" &&
+    currentUser.eligibility === "approved" &&
+    currentUser.codeOfConductAccepted &&
+    Boolean(currentUser.isActive);
+
   const buildFormFromProfile = useCallback(() => {
     const years = currentUser?.yearsOfExperience || 0;
     const derivedExperience =
@@ -131,6 +138,10 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
     e.preventDefault();
     if (submitting) return;
     if (!validate()) return;
+    if (!canSubmitWithProfile) {
+      alert("Your host profile must be active before applying.");
+      return;
+    }
 
     setSubmitting(true);
 
@@ -161,6 +172,14 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
       setSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = overflow;
+    };
+  }, []);
 
   useEffect(() => {
     setForm(buildFormFromProfile());

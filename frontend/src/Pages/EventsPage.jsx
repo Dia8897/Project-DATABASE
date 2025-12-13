@@ -4,7 +4,9 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import ApplyModal from "../components/ApplyModal";
 import EventDetailsModal from "../components/EventDetailsModal";
-import api from "../services/api";
+import api, { hostAPI } from "../services/api";
+
+const AUTH_EVENT = "gatherly-auth";
 
 const formatDate = (value) => {
   if (!value) return "TBA";
@@ -167,11 +169,42 @@ const DEMO_EVENTS = [
   },
 ];
 
+const LifecycleNotice = ({ title, description, children }) => (
+  <main className="bg-pearl min-h-screen flex flex-col">
+    <Navbar />
+    <div className="flex-1 flex items-center justify-center px-4 pt-28 pb-16">
+      <div className="max-w-3xl w-full bg-white rounded-[2rem] shadow-xl border border-gray-100 p-8 space-y-4">
+        <p className="text-xs uppercase tracking-[0.4em] text-ocean font-semibold">Host account</p>
+        <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
+        <p className="text-base text-gray-600">{description}</p>
+        {children}
+      </div>
+    </div>
+    <Footer />
+  </main>
+);
+
+const getLifecycleState = (user) => {
+  if (!user || user.role !== "user") return "ready";
+  const hasCoC = Boolean(user.codeOfConductAccepted);
+  const isActive = Boolean(user.isActive);
+  const eligibility = user.eligibility || "pending";
+
+  if (eligibility === "blocked") return "blocked";
+  if (eligibility === "pending") {
+    return hasCoC ? "pending" : "needs-coc";
+  }
+  if (eligibility === "approved") {
+    if (!hasCoC) return "needs-coc";
+    return isActive ? "ready" : "inactive";
+  }
+  return hasCoC && isActive ? "ready" : "pending";
+};
+
 export default function EventsPage() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [role, setRole] = useState(null);
   const [clothing, setClothing] = useState([]);
   const resolvePicture = (picture) => {
     const origin = (api.defaults.baseURL || "").replace(/\/api$/, "");
@@ -252,38 +285,44 @@ export default function EventsPage() {
   }, []);
 
   const [loggedInUser, setLoggedInUser] = useState(null);
+  const [hostActionLoading, setHostActionLoading] = useState(false);
+  const [hostActionError, setHostActionError] = useState("");
 
   useEffect(() => {
-    const user = localStorage.getItem('user');
-    if (user) {
-      setLoggedInUser(JSON.parse(user));
+    const syncUser = () => {
+      const user = localStorage.getItem("user");
+      if (!user) {
+        setLoggedInUser(null);
+        return;
+      }
       try {
-        const parsed = JSON.parse(user);
-        if (parsed.role) setRole(parsed.role);
-      } catch (_) {}
-    } else {
-      // If not logged in, perhaps show sign in modal or redirect
-      // For now, use default
-      setLoggedInUser({
-        userId: 42,
-        fName: "Lina",
-        lName: "Saliba",
-        email: "lina.saliba@example.com",
-        phoneNb: "+961 70 123 456",
-        gender: "F",
-        age: 26,
-        address: "Beirut Downtown, Biel",
-        clothingSize: "S",
-        eligibility: "approved",
-        yearsOfExperience: 4,
-        description:
-          "VIP hostess with corporate and luxury retail experience, bilingual ENG/FR",
-        spokenLanguages: ["English", "French", "Arabic"],
-      });
-    }
+        setLoggedInUser(JSON.parse(user));
+      } catch {
+        setLoggedInUser(null);
+      }
+    };
+
+    syncUser();
+    window.addEventListener(AUTH_EVENT, syncUser);
+    window.addEventListener("storage", syncUser);
+    return () => {
+      window.removeEventListener(AUTH_EVENT, syncUser);
+      window.removeEventListener("storage", syncUser);
+    };
   }, []);
 
+  const lifecycleState = useMemo(
+    () => getLifecycleState(loggedInUser),
+    [loggedInUser]
+  );
+  const hostReady =
+    loggedInUser?.role === "user" && lifecycleState === "ready";
+
   const loadApplications = useCallback(async () => {
+    if (!hostReady) {
+      setApplications([]);
+      return;
+    }
     const token = localStorage.getItem("token");
     if (!token) {
       setApplications([]);
@@ -295,11 +334,11 @@ export default function EventsPage() {
     } catch (err) {
       console.error("Failed to fetch applications", err);
     }
-  }, []);
+  }, [hostReady]);
 
   useEffect(() => {
     loadApplications();
-  }, [loadApplications, loggedInUser]);
+  }, [loadApplications]);
 
   const appliedEventIds = useMemo(
     () => new Set(applications.map((app) => app.eventId)),
@@ -353,8 +392,25 @@ export default function EventsPage() {
     setIsDetailsOpen(true);
   };
 
+  const ensureHostSession = () => {
+    if (!loggedInUser) {
+      alert("Please sign in as a host to apply.");
+      return false;
+    }
+    if (loggedInUser.role !== "user") {
+      alert("Only host accounts can apply to events.");
+      return false;
+    }
+    if (!hostReady) {
+      alert("Your host account is not active yet.");
+      return false;
+    }
+    return true;
+  };
+
   const handleApply = (event) => {
     if (!event || appliedEventIds.has(event.eventId)) return;
+    if (!ensureHostSession()) return;
     setDetailsEvent(null);
     setIsDetailsOpen(false);
     setSelectedEvent(event);
@@ -400,6 +456,95 @@ export default function EventsPage() {
     const timer = setTimeout(() => setLastApplication(null), 6000);
     return () => clearTimeout(timer);
   }, [lastApplication]);
+
+  const renderLifecycleGate = () => {
+    if (!loggedInUser || loggedInUser.role !== "user") return null;
+    if (lifecycleState === "ready") return null;
+
+    if (lifecycleState === "blocked") {
+      return (
+        <LifecycleNotice
+          title="Your account has been blocked"
+          description="For security reasons, hosts with blocked accounts cannot access staffing features. Please reach out to the Gatherly admin team if you believe this is a mistake."
+        />
+      );
+    }
+
+    if (lifecycleState === "needs-coc") {
+      return (
+        <LifecycleNotice
+          title="Accept the Code of Conduct"
+          description="To continue onboarding, please review and accept the agency's Code of Conduct. This is required before the team reviews your profile."
+        >
+          {hostActionError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm px-4 py-3">
+              {hostActionError}
+            </div>
+          )}
+          <button
+            onClick={async () => {
+              if (!loggedInUser) return;
+              setHostActionError("");
+              setHostActionLoading(true);
+              try {
+                await hostAPI.acceptCodeOfConduct(loggedInUser.userId);
+                const updatedUser = {
+                  ...loggedInUser,
+                  codeOfConductAccepted: true,
+                };
+                localStorage.setItem("user", JSON.stringify(updatedUser));
+                window.dispatchEvent(new Event(AUTH_EVENT));
+                setLoggedInUser(updatedUser);
+              } catch (err) {
+                setHostActionError(
+                  err.response?.data?.message ||
+                    "Failed to accept the Code of Conduct."
+                );
+              } finally {
+                setHostActionLoading(false);
+              }
+            }}
+            className="px-5 py-3 rounded-2xl bg-ocean text-white font-semibold hover:bg-ocean/80 transition disabled:opacity-60"
+            disabled={hostActionLoading}
+          >
+            {hostActionLoading ? "Saving..." : "Accept Code of Conduct"}
+          </button>
+        </LifecycleNotice>
+      );
+    }
+
+    if (lifecycleState === "pending") {
+      return (
+        <LifecycleNotice
+          title="Your application is under review"
+          description="Thanks for completing onboarding. The agency team is reviewing your profile. You can update your profile details while you wait."
+        >
+          <a
+            href="/profile"
+            className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-cream"
+          >
+            View profile
+          </a>
+        </LifecycleNotice>
+      );
+    }
+
+    if (lifecycleState === "inactive") {
+      return (
+        <LifecycleNotice
+          title="Account inactive"
+          description="Your host account is currently inactive. Please contact the agency team to reactivate access."
+        />
+      );
+    }
+
+    return null;
+  };
+
+  const gateScreen = renderLifecycleGate();
+  if (gateScreen) {
+    return gateScreen;
+  }
 
   return (
     <main className="bg-pearl min-h-screen">

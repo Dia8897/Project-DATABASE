@@ -1,21 +1,38 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Mail, Lock, User, ArrowRight } from "lucide-react";
-import api from "../services/api";
+import api, { hostAPI, clientAPI } from "../services/api";
 
 const AUTH_EVENT = "gatherly-auth";
+const INITIAL_FORM = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  password: "",
+  confirmPassword: "",
+  phoneNb: "",
+  age: "",
+  gender: "",
+  address: "",
+  clothingSize: "",
+  profilePic: "",
+  description: "",
+};
 
 export default function AuthModal({ show, onClose, initialRole = "host" }) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [activeRole, setActiveRole] = useState(initialRole);
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
+  const [formData, setFormData] = useState(INITIAL_FORM);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!show) return undefined;
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = overflow;
+    };
+  }, [show]);
 
   if (!show) return null;
 
@@ -27,21 +44,82 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSignUp) {
+      if (!["host", "client"].includes(activeRole)) {
+        alert("Sign-up is currently available for hosts and clients only.");
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        alert("Passwords do not match.");
+        return;
+      }
+      try {
+        const commonPayload = {
+          fName: formData.firstName.trim(),
+          lName: formData.lastName.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+          phoneNb: formData.phoneNb.trim(),
+          age: Number(formData.age),
+          gender: formData.gender,
+          address: formData.address.trim(),
+        };
+        let response;
+        if (activeRole === "host") {
+          const payload = {
+            ...commonPayload,
+            clothingSize: formData.clothingSize,
+            profilePic: formData.profilePic?.trim() || undefined,
+            description: formData.description?.trim() || undefined,
+          };
+          response = await hostAPI.signupHost(payload);
+          alert("Host account created. Check your inbox for approval updates.");
+        } else {
+          const payload = {
+            ...commonPayload,
+          };
+          response = await clientAPI.signupClient(payload);
+          alert("Client account created. You can now sign in and start booking events.");
+        }
+        setIsSignUp(false);
+        const createdEmail = response?.data?.user?.email || response?.data?.client?.email || formData.email;
+        setFormData((prev) => ({
+          ...INITIAL_FORM,
+          email: createdEmail,
+        }));
+      } catch (err) {
+        const message = err.response?.data?.message || "Sign-up failed";
+        const validationErrors = err.response?.data?.errors;
+        alert(
+          validationErrors?.length
+            ? `${message}\n- ${validationErrors.join("\n- ")}`
+            : message
+        );
+      }
+      return;
+    }
+
     try {
-      const apiRole = activeRole === "host" ? "user" : activeRole; // Map host to backend role
-      const frontendRole = activeRole === "host" ? "user" : activeRole; // Map host to user for frontend consistency
-      const response = await api.post('/auth/login', { email: formData.email, password: formData.password, role: apiRole });
+      const apiRole = activeRole === "host" ? "user" : activeRole;
+      const frontendRole = activeRole === "host" ? "user" : activeRole;
+      const roleLabel = activeRole === "host" ? "host" : activeRole;
+      const response = await api.post("/auth/login", {
+        email: formData.email,
+        password: formData.password,
+        role: apiRole,
+      });
 
       const storedUser = { ...response.data.user, role: frontendRole };
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(storedUser));
-      localStorage.setItem('role', frontendRole);
+      localStorage.setItem("token", response.data.token);
+      localStorage.setItem("user", JSON.stringify(storedUser));
+      localStorage.setItem("role", frontendRole);
+      localStorage.setItem("userRole", roleLabel);
       window.dispatchEvent(new Event(AUTH_EVENT));
 
       onClose();
       navigate(activeRole === "admin" ? "/admin" : activeRole === "client" ? "/client" : "/events");
     } catch (err) {
-      alert('Login failed: ' + (err.response?.data?.message || 'Unknown error'));
+      alert("Login failed: " + (err.response?.data?.message || "Unknown error"));
     }
   };
 
@@ -64,7 +142,7 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -112,7 +190,7 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
           {isSignUp && (
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -182,6 +260,101 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean"
                 />
               </div>
+            </div>
+          )}
+
+          {isSignUp && ["host", "client"].includes(activeRole) && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={formData.phoneNb}
+                    onChange={handleInputChange("phoneNb")}
+                    placeholder="+961 70 123 456"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                  <input
+                    type="number"
+                    min="18"
+                    max="100"
+                    value={formData.age}
+                    onChange={handleInputChange("age")}
+                    placeholder="26"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className={activeRole !== "host" ? "sm:col-span-2" : ""}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                  <select
+                    value={formData.gender}
+                    onChange={handleInputChange("gender")}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean"
+                  >
+                    <option value="">Select</option>
+                    <option value="M">Male</option>
+                    <option value="F">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                {activeRole === "host" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Clothing Size</label>
+                    <select
+                      value={formData.clothingSize}
+                      onChange={handleInputChange("clothingSize")}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean"
+                    >
+                      <option value="">Select</option>
+                      {["XS", "S", "M", "L", "XL"].map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <input
+                  type="text"
+                  value={formData.address}
+                  onChange={handleInputChange("address")}
+                  placeholder="Beirut Downtown, Biel"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean"
+                />
+              </div>
+              {activeRole === "host" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Profile Photo URL (optional)</label>
+                  <input
+                    type="text"
+                    value={formData.profilePic}
+                    onChange={handleInputChange("profilePic")}
+                    placeholder="https://..."
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean"
+                  />
+                </div>
+              )}
+              {activeRole === "host" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Short Bio (optional)</label>
+                  <textarea
+                    rows={3}
+                    value={formData.description}
+                    onChange={handleInputChange("description")}
+                    placeholder="Tell clients about your experience..."
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean"
+                  />
+                </div>
+              )}
             </div>
           )}
 

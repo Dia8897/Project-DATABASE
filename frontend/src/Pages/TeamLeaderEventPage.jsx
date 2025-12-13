@@ -4,9 +4,8 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import AcceptedHosts from "../components/teamleader/AcceptedHosts";
 import EventPlanSeating from "../components/teamleader/EventPlanSeating";
-import EventRating from "../components/teamleader/EventRating";
-import { Calendar, MapPin, Users, Clock, Building2 } from "lucide-react";
-import api from "../services/api";
+import { Calendar, MapPin, Users, Clock, Building2, Star } from "lucide-react";
+import api, { reviewAPI } from "../services/api";
 
 const formatDate = (value) => {
   if (!value) return "TBA";
@@ -131,6 +130,28 @@ const buildEventPlan = (event, hostList) => {
   };
 };
 
+const AUTH_EVENT = "gatherly-auth";
+
+const readStoredUser = () => {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem("user");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn("Failed to parse stored user", err);
+    return null;
+  }
+};
+
+const REVIEW_STAR_LABELS = {
+  1: "Needs urgent improvements",
+  2: "Below expectations",
+  3: "Met expectations",
+  4: "Great execution",
+  5: "Outstanding experience",
+};
+
 export default function TeamLeaderEventPage() {
   const { eventId } = useParams();
   const [activeTab, setActiveTab] = useState("hosts");
@@ -141,10 +162,42 @@ export default function TeamLeaderEventPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [attendance, setAttendance] = useState({});
+  const [review, setReview] = useState(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState("");
+  const [reviewForm, setReviewForm] = useState({ starRating: 5, content: "" });
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewSuccess, setReviewSuccess] = useState("");
+  const [sessionUser, setSessionUser] = useState(() => readStoredUser());
+  const [hoveredStar, setHoveredStar] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const syncSession = () => setSessionUser(readStoredUser());
+    window.addEventListener(AUTH_EVENT, syncSession);
+    window.addEventListener("storage", syncSession);
+    return () => {
+      window.removeEventListener(AUTH_EVENT, syncSession);
+      window.removeEventListener("storage", syncSession);
+    };
+  }, []);
 
   const attendanceStorageKey = useMemo(
     () => (eventId ? `team-event-${eventId}-attendance` : null),
     [eventId]
+  );
+  const currentUserId = sessionUser?.userId ?? sessionUser?.id ?? null;
+
+  const eventEnded = useMemo(() => {
+    if (!eventData?.endsAt) return false;
+    const end = new Date(eventData.endsAt);
+    if (Number.isNaN(end.getTime())) return false;
+    return end <= new Date();
+  }, [eventData?.endsAt]);
+
+  const isTeamLeader = useMemo(
+    () => Boolean(currentUserId && eventData?.teamLeaderId === currentUserId),
+    [currentUserId, eventData?.teamLeaderId]
   );
 
   useEffect(() => {
@@ -178,6 +231,37 @@ export default function TeamLeaderEventPage() {
     };
 
     fetchOverview();
+  }, [eventId]);
+
+  const loadReview = useCallback(async () => {
+    if (!eventId) return;
+    setReviewLoading(true);
+    setReviewError("");
+    try {
+      const { data } = await reviewAPI.getEventReviews(eventId);
+      const rows = Array.isArray(data?.reviews) ? data.reviews : [];
+      const selectedReview =
+        (currentUserId && rows.find((rev) => rev.reviewerId === currentUserId)) ||
+        rows[0] ||
+        null;
+      setReview(selectedReview ?? null);
+    } catch (err) {
+      const message = err.response?.data?.message || "Failed to load review.";
+      setReviewError(message);
+      setReview(null);
+    } finally {
+      setReviewLoading(false);
+    }
+  }, [eventId, currentUserId]);
+
+  useEffect(() => {
+    if (!eventData) return;
+    loadReview();
+  }, [eventData, loadReview]);
+
+  useEffect(() => {
+    setReviewSuccess("");
+    setReviewError("");
   }, [eventId]);
 
   useEffect(() => {
@@ -216,15 +300,71 @@ export default function TeamLeaderEventPage() {
     [attendanceStorageKey]
   );
 
+  const handleStarSelection = (value) => {
+    setReviewForm((prev) => ({ ...prev, starRating: value }));
+  };
+
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault();
+    if (!eventId || !isTeamLeader) return;
+
+    setReviewError("");
+    setReviewSuccess("");
+    setReviewSubmitting(true);
+    try {
+      const payload = {
+        starRating: Number(reviewForm.starRating),
+        content: reviewForm.content.trim(),
+      };
+      const { data } = await reviewAPI.submitTeamLeaderReview(eventId, payload);
+      const reviewerName = sessionUser
+        ? {
+            fName: sessionUser.fName ?? "",
+            lName: sessionUser.lName ?? "",
+          }
+        : undefined;
+      setReview({
+        ...data.review,
+        reviewer: reviewerName,
+      });
+      setReviewForm({ starRating: 5, content: "" });
+      setHoveredStar(0);
+      setReviewSuccess("Review submitted successfully.");
+    } catch (err) {
+      const message = err.response?.data?.message || "Failed to submit review.";
+      setReviewError(message);
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
+  const renderStaticStars = (value, size = 20) => (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Star
+          key={star}
+          size={size}
+          className={star <= value ? "text-yellow-400" : "text-gray-300"}
+          fill={star <= value ? "currentColor" : "none"}
+        />
+      ))}
+    </div>
+  );
+
   const tabs = useMemo(
     () => [
       { id: "hosts", label: "Team Members", count: hosts.length },
       { id: "plan", label: "Event Plan & Seating", count: null },
-      { id: "rating", label: "Rate Event", count: null },
     ],
     [hosts.length]
   );
   const planData = useMemo(() => buildEventPlan(eventData, hosts), [eventData, hosts]);
+  const targetHostCount = eventData?.nbOfHosts ?? hosts.length ?? 0;
+  const confirmedHostCount =
+    typeof eventData?.acceptedHostsCount === "number"
+      ? eventData.acceptedHostsCount
+      : hosts.length;
+  const openSlots = Math.max((targetHostCount || 0) - confirmedHostCount, 0);
 
   if (loading) {
     return (
@@ -251,6 +391,9 @@ export default function TeamLeaderEventPage() {
 
   const formattedDate = formatDate(eventData.startsAt);
   const formattedTime = formatTimeRange(eventData.startsAt, eventData.endsAt);
+  const reviewVisibilityLabel = review?.visibility
+    ? `Visibility: ${review.visibility.charAt(0).toUpperCase()}${review.visibility.slice(1)}`
+    : null;
 
   return (
     <main className="bg-pearl min-h-screen">
@@ -294,10 +437,15 @@ export default function TeamLeaderEventPage() {
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Users size={18} className="text-ocean" />
                     <span>
-                      {hosts.length}/{eventData.nbOfHosts ?? "?"} hosts
+                      {confirmedHostCount}/{targetHostCount || "?"} hosts filled
                     </span>
                   </div>
                 </div>
+                {openSlots > 0 && (
+                  <div className="px-4 py-3 rounded-2xl bg-rose/10 text-rose-600 border border-rose/20 text-sm font-semibold">
+                    {openSlots} slot{openSlots > 1 ? "s" : ""} still need assignment
+                  </div>
+                )}
               </div>
 
               <div className="lg:w-80 bg-cream rounded-2xl p-6 border border-gray-100">
@@ -359,6 +507,144 @@ export default function TeamLeaderEventPage() {
                   )}
                 </button>
               ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="px-4">
+          <div className="max-w-6xl mx-auto">
+            <div className="bg-white rounded-3xl shadow border border-gray-100 p-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">
+                    Event review
+                  </p>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Team leader recap
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Share how things went once the event wraps up.
+                  </p>
+                </div>
+                {reviewVisibilityLabel && (
+                  <span className="px-4 py-2 rounded-full bg-cream text-gray-700 text-xs font-semibold uppercase">
+                    {reviewVisibilityLabel}
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-6 space-y-4">
+                {reviewLoading ? (
+                  <p className="text-sm text-gray-500">Loading review details...</p>
+                ) : !eventEnded ? (
+                  <div className="px-4 py-3 rounded-2xl bg-cream text-gray-600">
+                    Reviews unlock after the event ends.
+                  </div>
+                ) : review ? (
+                  <div className="bg-cream/60 rounded-2xl p-6 border border-gray-100">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <div className="flex items-center gap-3">
+                        {renderStaticStars(review.starRating, 26)}
+                        <span className="text-xl font-semibold text-gray-900">
+                          {review.starRating}/5
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500">
+                        Submitted {formatDateTime(review.createdAt)}
+                      </p>
+                    </div>
+                    {review.reviewer && (
+                      <p className="mt-2 text-sm text-gray-500">
+                        By {[review.reviewer.fName, review.reviewer.lName].filter(Boolean).join(" ") || "Team Leader"}
+                      </p>
+                    )}
+                    <p className="mt-4 text-gray-700 whitespace-pre-line leading-relaxed">
+                      {review.content?.trim() || "No written comments provided."}
+                    </p>
+                    {reviewVisibilityLabel && (
+                      <div className="mt-4 text-xs uppercase tracking-wide text-gray-500">
+                        {reviewVisibilityLabel}
+                      </div>
+                    )}
+                  </div>
+                ) : isTeamLeader ? (
+                  <form onSubmit={handleReviewSubmit} className="space-y-5">
+                    <div className="bg-cream rounded-2xl p-6 text-center">
+                      <p className="text-sm font-semibold text-gray-700 mb-3">
+                        Overall experience
+                      </p>
+                      <div className="flex justify-center gap-2 mb-2">
+                        {[1, 2, 3, 4, 5].map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => handleStarSelection(value)}
+                            onMouseEnter={() => setHoveredStar(value)}
+                            onMouseLeave={() => setHoveredStar(0)}
+                            className="p-1 transition-transform hover:scale-110"
+                          >
+                            <Star
+                              size={34}
+                              className={
+                                value <= (hoveredStar || reviewForm.starRating)
+                                  ? "text-yellow-400"
+                                  : "text-gray-300"
+                              }
+                              fill={
+                                value <= (hoveredStar || reviewForm.starRating)
+                                  ? "currentColor"
+                                  : "none"
+                              }
+                            />
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-base font-semibold text-gray-900">
+                        {REVIEW_STAR_LABELS[hoveredStar || reviewForm.starRating] ||
+                          "Select a rating"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Quick recap (optional)
+                      </label>
+                      <textarea
+                        rows={4}
+                        value={reviewForm.content}
+                        onChange={(e) =>
+                          setReviewForm((prev) => ({ ...prev, content: e.target.value }))
+                        }
+                        placeholder="Highlight successes, risks, and anything the admin team should know..."
+                        className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ocean/40 focus:border-ocean resize-none"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={reviewSubmitting || reviewForm.starRating < 1}
+                      className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-ocean text-white font-semibold hover:bg-ocean/80 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {reviewSubmitting ? "Submitting..." : "Submit review"}
+                    </button>
+                  </form>
+                ) : (
+                  <div className="px-4 py-3 rounded-2xl bg-cream text-gray-600">
+                    Only the assigned team leader can submit a review for this event.
+                  </div>
+                )}
+
+                {reviewError && (
+                  <p className="text-sm text-rose-600 bg-rose/10 border border-rose/20 rounded-xl px-4 py-3">
+                    {reviewError}
+                  </p>
+                )}
+                {reviewSuccess && (
+                  <p className="text-sm text-green-700 bg-mint/30 border border-mint/40 rounded-xl px-4 py-3">
+                    {reviewSuccess}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </section>
@@ -431,6 +717,9 @@ export default function TeamLeaderEventPage() {
                 hosts={hosts}
                 attendance={attendance}
                 onToggleAttendance={handleToggleAttendance}
+                targetCount={targetHostCount}
+                confirmedCount={confirmedHostCount}
+                openSlots={openSlots}
               />
             )}
 
@@ -446,8 +735,6 @@ export default function TeamLeaderEventPage() {
                   </p>
                 </div>
               ))}
-
-            {activeTab === "rating" && <EventRating event={eventData} />}
           </div>
         </section>
       </div>

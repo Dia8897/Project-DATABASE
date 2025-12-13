@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 
 const DetailRow = ({ label, value }) => {
   if (!value) return null;
@@ -16,6 +16,15 @@ export default function EventDetailsModal({
   onApply,
   disableApply = false,
 }) {
+  useEffect(() => {
+    if (!event) return undefined;
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = overflow;
+    };
+  }, [event]);
+
   if (!event) return null;
 
   const filled = event.acceptedHostsCount ?? 0;
