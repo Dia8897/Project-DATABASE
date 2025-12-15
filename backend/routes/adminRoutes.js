@@ -2,25 +2,16 @@ import { Router } from "express";
 import db from "../config/db.js";
 import bcrypt from "bcryptjs";
 import { verifyToken, isAdmin } from "../middleware/auth.js";
+import { buildTransportationSummary } from "../utils/transportation.js";
 // import { verify } from "jsonwebtoken";
 
 const router = Router();
 const HOST_RETURN_FIELDS =
   "userId, fName, lName, email, phoneNb, age, gender, address, clothingSize, eligibility, isActive, codeOfConductAccepted, profilePic, description, createdAt, updatedAt";
-const CLIENT_FIELDS = [
-  "clientId",
-  "fName",
-  "lName",
-  "email",
-  "phoneNb",
-  "age",
-  "gender",
-  "address",
-  "createdAt",
-  "updatedAt",
-];
-const CLIENT_SELECT_WITH_ALIAS = CLIENT_FIELDS.map((field) => `c.${field}`).join(", ");
-const CLIENT_SELECT = CLIENT_FIELDS.join(", ");
+const CLIENT_BASE_FIELDS = ["clientId", "fName", "lName", "email", "phoneNb", "age", "gender", "address"];
+const CLIENT_SELECT_WITH_ALIAS = CLIENT_BASE_FIELDS.map((field) => `c.${field}`).join(", ");
+const CLOTHING_FIELDS = ["clothesId", "clothingLabel", "picture", "description"];
+const CLOTHING_SELECT = CLOTHING_FIELDS.join(", ");
 
 // GET all event requests with client information (with optional status filter)
 router.get("/event-requests", verifyToken, isAdmin, async (req, res) => {
@@ -57,7 +48,15 @@ router.get("/event-requests", verifyToken, isAdmin, async (req, res) => {
         ORDER BY e.createdAt DESC`,
       params
     );
-    res.json(rows);
+
+    const eventsWithTransport = await Promise.all(
+      rows.map(async (event) => ({
+        ...event,
+        transportationSummary: await buildTransportationSummary(event.eventId, event.nbOfHosts),
+      }))
+    );
+
+    res.json(eventsWithTransport);
   } catch (err) {
     console.error("Failed to fetch event requests", err);
     res.status(500).json({ message: "Failed to fetch event requests" });
@@ -97,23 +96,178 @@ router.get("/hosts/pending", verifyToken, isAdmin, async (_req, res) => {
 
 router.get("/clients", verifyToken, isAdmin, async (_req, res) => {
   try {
-    const [rows] = await db.query(
+    const [clients] = await db.query(
       `SELECT ${CLIENT_SELECT_WITH_ALIAS},
-              COUNT(e.eventId) AS eventCount,
-              MAX(e.updatedAt) AS lastEventAt
+              NULL AS createdAt,
+              NULL AS updatedAt
          FROM CLIENTS c
-    LEFT JOIN EVENTS e ON e.clientId = c.clientId
-     GROUP BY c.clientId
-     ORDER BY c.createdAt DESC`
+     ORDER BY c.clientId DESC`
     );
-    const normalized = rows.map((row) => ({
-      ...row,
-      eventCount: Number(row.eventCount || 0),
-    }));
+
+    const [eventStats] = await db.query(
+      `SELECT clientId,
+              COUNT(eventId) AS eventCount,
+              MAX(COALESCE(endsAt, startsAt)) AS lastEventAt
+         FROM EVENTS
+        WHERE clientId IS NOT NULL
+     GROUP BY clientId`
+    );
+
+    const statsMap = new Map(
+      eventStats.map((row) => [
+        row.clientId,
+        {
+          eventCount: Number(row.eventCount || 0),
+          lastEventAt: row.lastEventAt || null,
+        },
+      ])
+    );
+
+    const normalized = clients.map((client) => {
+      const stats = statsMap.get(client.clientId) || { eventCount: 0, lastEventAt: null };
+      return {
+        ...client,
+        eventCount: stats.eventCount,
+        lastEventAt: stats.lastEventAt,
+      };
+    });
+
     res.json(normalized);
   } catch (err) {
     console.error("Failed to fetch clients", err);
     res.status(500).json({ message: "Failed to fetch clients." });
+  }
+});
+
+// Clothing inventory management
+router.get("/clothing", verifyToken, isAdmin, async (_req, res) => {
+  try {
+    const [items] = await db.query(
+      `SELECT ${CLOTHING_SELECT}
+         FROM CLOTHING
+     ORDER BY clothingLabel`
+    );
+
+    const [stockRows] = await db.query(
+      `SELECT clothingId, size, stockQty
+         FROM CLOTHING_STOCK
+     ORDER BY clothingId, size`
+    );
+
+    const stockMap = new Map();
+    stockRows.forEach((row) => {
+      if (!stockMap.has(row.clothingId)) {
+        stockMap.set(row.clothingId, []);
+      }
+      stockMap.get(row.clothingId).push({
+        size: row.size,
+        stockQty: Number(row.stockQty),
+      });
+    });
+
+    const normalized = items.map((item) => ({
+      ...item,
+      stock: stockMap.get(item.clothesId) || [],
+    }));
+
+    res.json(normalized);
+  } catch (err) {
+    console.error("Failed to fetch clothing inventory", err);
+    res.status(500).json({ message: "Failed to fetch clothing inventory." });
+  }
+});
+
+router.post("/clothing", verifyToken, isAdmin, async (req, res) => {
+  const { clothingLabel, description, picture, stock } = req.body || {};
+  if (!clothingLabel || !clothingLabel.trim()) {
+    return res.status(400).json({ message: "clothingLabel is required." });
+  }
+
+  const sanitizedStock = Array.isArray(stock)
+    ? stock
+        .map((entry) => ({
+          size: typeof entry.size === "string" ? entry.size.trim().toUpperCase() : "",
+          stockQty: Number(entry.stockQty),
+        }))
+        .filter((entry) => entry.size && Number.isInteger(entry.stockQty) && entry.stockQty >= 0)
+    : [];
+
+  try {
+    const [result] = await db.query(
+      "INSERT INTO CLOTHING (clothingLabel, description, picture) VALUES (?, ?, ?)",
+      [clothingLabel.trim(), description?.trim() || null, picture?.trim() || null]
+    );
+
+    const clothesId = result.insertId;
+
+    for (const entry of sanitizedStock) {
+      await db.query(
+        `INSERT INTO CLOTHING_STOCK (clothingId, size, stockQty)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE stockQty = VALUES(stockQty)`,
+        [clothesId, entry.size, entry.stockQty]
+      );
+    }
+
+    const response = {
+      clothesId,
+      clothingLabel: clothingLabel.trim(),
+      description: description?.trim() || null,
+      picture: picture?.trim() || null,
+      stock: sanitizedStock,
+    };
+
+    res.status(201).json(response);
+  } catch (err) {
+    console.error("Failed to add clothing", err);
+    res.status(500).json({ message: "Failed to add clothing." });
+  }
+});
+
+router.patch("/clothing/:clothesId/stock", verifyToken, isAdmin, async (req, res) => {
+  const clothesId = Number(req.params.clothesId);
+  const { size, amount } = req.body || {};
+
+  if (!Number.isInteger(clothesId) || clothesId <= 0) {
+    return res.status(400).json({ message: "Invalid clothesId" });
+  }
+  if (!size || !size.trim()) {
+    return res.status(400).json({ message: "size is required" });
+  }
+  const normalizedSize = size.trim().toUpperCase();
+  const increment = Number(amount);
+  if (!Number.isInteger(increment) || increment <= 0) {
+    return res.status(400).json({ message: "amount must be a positive integer" });
+  }
+
+  try {
+    const [itemRows] = await db.query("SELECT clothesId FROM CLOTHING WHERE clothesId = ?", [clothesId]);
+    if (!itemRows.length) {
+      return res.status(404).json({ message: "Clothing item not found" });
+    }
+
+    await db.query(
+      `INSERT INTO CLOTHING_STOCK (clothingId, size, stockQty)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE stockQty = CLOTHING_STOCK.stockQty + VALUES(stockQty)`,
+      [clothesId, normalizedSize, increment]
+    );
+
+    const [updatedStock] = await db.query(
+      "SELECT size, stockQty FROM CLOTHING_STOCK WHERE clothingId = ? ORDER BY size",
+      [clothesId]
+    );
+
+    res.json({
+      clothesId,
+      stock: updatedStock.map((entry) => ({
+        size: entry.size,
+        stockQty: Number(entry.stockQty),
+      })),
+    });
+  } catch (err) {
+    console.error("Failed to update stock", err);
+    res.status(500).json({ message: "Failed to update stock." });
   }
 });
 
@@ -125,7 +279,9 @@ router.get("/clients/:clientId", verifyToken, isAdmin, async (req, res) => {
 
   try {
     const [clientRows] = await db.query(
-      `SELECT ${CLIENT_SELECT}
+      `SELECT ${CLIENT_BASE_FIELDS.join(", ")},
+              NULL AS createdAt,
+              NULL AS updatedAt
          FROM CLIENTS
         WHERE clientId = ?`,
       [clientId]

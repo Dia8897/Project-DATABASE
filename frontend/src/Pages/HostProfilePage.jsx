@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -48,6 +48,7 @@ const buildTrainingDuration = (startTime, endTime) => {
 export default function HostProfilePage() {
   const { hostId } = useParams();
   const [activeTab, setActiveTab] = useState("applied");
+  const navRef = useRef(null);
   const [profile, setProfile] = useState(null);
   const [appliedEvents, setAppliedEvents] = useState([]);
   const [attendedEvents, setAttendedEvents] = useState([]);
@@ -286,6 +287,19 @@ export default function HostProfilePage() {
     }
   };
 
+  const scrollTabsIntoView = () => {
+    if (!navRef.current) return;
+    const offset = 100;
+    const elementTop = navRef.current.getBoundingClientRect().top + window.scrollY;
+    const target = Math.max(elementTop - offset, 0);
+    window.scrollTo({ top: target, behavior: "smooth" });
+  };
+
+  const handleTabChange = (nextTab) => {
+    setActiveTab(nextTab);
+    requestAnimationFrame(scrollTabsIntoView);
+  };
+
   if (loading) {
     return (
       <main className="bg-pearl min-h-screen flex items-center justify-center">
@@ -317,13 +331,13 @@ export default function HostProfilePage() {
         <ProfileStats profile={profile} eventsCount={attendedEvents.length} clientsCount={workedClients.length} />
 
         {/* Tab Navigation */}
-        <section className="px-4">
+        <section className="px-4" ref={navRef}>
           <div className="max-w-6xl mx-auto">
             <div className="bg-white rounded-3xl shadow-lg p-2 flex flex-wrap gap-2">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   className={`flex-1 min-w-[140px] px-4 py-3 rounded-2xl text-sm font-semibold transition flex items-center justify-center gap-2 ${
                     activeTab === tab.id
                       ? "bg-ocean text-white shadow-md"

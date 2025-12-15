@@ -98,7 +98,8 @@ router.get("/event/:eventId", verifyToken, isAdmin, async (req, res) => {
 
 router.post("/", verifyToken, requireActiveHost, async (req, res) => {
   try {
-    const { requestedRole, notes, eventId, requestDress } = req.body;
+    const { requestedRole, notes, eventId, requestDress, needsRide } = req.body;
+    const ridePreference = Boolean(needsRide);
 
     // Validation
     if (!requestedRole || !requestedRole.trim()) {
@@ -129,9 +130,18 @@ router.post("/", verifyToken, requireActiveHost, async (req, res) => {
     }
 
     const [result] = await db.query(
-      `INSERT INTO EVENT_APP (status, requestedRole, assignedRole, notes, sentAt, decidedAt, senderId, adminId, eventId, requestDress)
-       VALUES (?, ?, ?, ?, NOW(), NULL, ?, NULL, ?, ?)`,
-      ['pending', requestedRole.trim(), null, notes || null, req.user.id, parseInt(eventId), requestDress ? 1 : 0]
+      `INSERT INTO EVENT_APP (status, requestedRole, assignedRole, notes, sentAt, decidedAt, senderId, adminId, eventId, requestDress, needsRide)
+       VALUES (?, ?, ?, ?, NOW(), NULL, ?, NULL, ?, ?, ?)`,
+      [
+        'pending',
+        requestedRole.trim(),
+        null,
+        notes || null,
+        req.user.id,
+        parseInt(eventId),
+        requestDress ? 1 : 0,
+        ridePreference ? 1 : 0,
+      ]
     );
 
     res.status(201).json({
@@ -145,6 +155,45 @@ router.post("/", verifyToken, requireActiveHost, async (req, res) => {
       return res.status(400).json({ message: "Invalid eventId - event does not exist" });
     }
     res.status(500).json({ message: "Failed to create event application" });
+  }
+});
+
+router.patch("/:id/ride", verifyToken, requireActiveHost, async (req, res) => {
+  const { id } = req.params;
+  const { needsRide } = req.body || {};
+
+  if (typeof needsRide !== "boolean") {
+    return res.status(400).json({ message: "needsRide must be a boolean" });
+  }
+
+  try {
+    const [rows] = await db.query(
+      "SELECT senderId, status FROM EVENT_APP WHERE eventAppId = ?",
+      [id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "Event application not found" });
+    }
+
+    const app = rows[0];
+    if (app.senderId !== req.user.id) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    if (app.status !== "pending") {
+      return res.status(400).json({ message: "Transportation preference can only be updated while the application is pending" });
+    }
+
+    await db.query(
+      "UPDATE EVENT_APP SET needsRide = ? WHERE eventAppId = ?",
+      [needsRide ? 1 : 0, id]
+    );
+
+    res.json({ message: "Transportation preference updated" });
+  } catch (err) {
+    console.error("Failed to update transportation preference", err);
+    res.status(500).json({ message: "Failed to update transportation preference" });
   }
 });
 

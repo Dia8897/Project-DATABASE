@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { User, CheckCircle, XCircle, Mail, Phone, Award, Languages, Eye, X } from "lucide-react";
 import api, { adminAPI } from "../../services/api";
+import useBodyScrollLock from "../../hooks/useBodyScrollLock";
 
 const FALLBACK_DESCRIPTION = "No additional notes provided.";
 const HYDRATION_FIELDS = ["applicantFirstName", "applicantLastName", "applicantEmail", "applicantPhone"];
@@ -145,6 +146,7 @@ export default function HostApplications() {
   const [pendingError, setPendingError] = useState("");
   const [hostActionState, setHostActionState] = useState(null);
   const [onboardingFilter, setOnboardingFilter] = useState("all");
+  useBodyScrollLock(Boolean(profileModal || hostActionState));
 
   useEffect(() => {
     let cancelled = false;

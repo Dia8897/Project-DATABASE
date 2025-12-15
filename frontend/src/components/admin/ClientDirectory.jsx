@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { adminAPI } from "../../services/api";
 import { Search, User, Mail, Phone, MapPin, Eye, X, Calendar } from "lucide-react";
+import useBodyScrollLock from "../../hooks/useBodyScrollLock";
 
 const formatDate = (value) => {
   if (!value) return "—";
@@ -21,6 +22,7 @@ export default function ClientDirectory() {
   const [selectedClient, setSelectedClient] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
+  useBodyScrollLock(Boolean(selectedClient));
 
   useEffect(() => {
     let cancelled = false;

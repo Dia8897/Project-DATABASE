@@ -1,6 +1,7 @@
 import { Router } from "express";
 import db from "../config/db.js";
 import { verifyToken, isAdmin, isClient, isUserOrAdmin, isUser, requireActiveHost } from "../middleware/auth.js";
+import { buildTransportationSummary } from "../utils/transportation.js";
 
 const router = Router();
 const ALLOWED_STATUSES = ["pending", "accepted", "rejected"];
@@ -15,6 +16,9 @@ router.get("/", async (_req, res) => {
              c.picture       AS clothingPicture,
              c.description   AS clothingDescription,
              cs.stockInfo    AS clothingStockInfo,
+             EXISTS (
+               SELECT 1 FROM TRANSPORTATION t WHERE t.eventId = e.eventId
+             ) AS transportationAvailable,
              (
                SELECT COUNT(*)
                  FROM EVENT_APP ea
@@ -30,7 +34,12 @@ router.get("/", async (_req, res) => {
             GROUP BY clothingId
              ) cs ON cs.clothingId = e.clothesId
        WHERE e.status = 'accepted'`);
-    res.json(rows);
+    const normalized = rows.map((event) => ({
+      ...event,
+      transportationAvailable: Boolean(event.transportationAvailable),
+    }));
+
+    res.json(normalized);
   } catch (err) {
     console.error("Failed to fetch events", err);
     res.status(500).json({ message: "Failed to fetch events" });
@@ -109,7 +118,8 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
               clo.clothesId,
               clo.clothingLabel,
               clo.picture  AS clothingPicture,
-              clo.description AS clothingDescription
+              clo.description AS clothingDescription,
+              ea.needsRide
         FROM EVENT_APP ea
         JOIN USERS u ON u.userId = ea.senderId
     LEFT JOIN EVENTS ev ON ev.eventId = ea.eventId
@@ -118,19 +128,7 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
         ORDER BY ea.assignedRole DESC, u.fName`,
       [eventId]
     );
-
-    const [transportRows] = await db.query(
-      `SELECT transportationId,
-              vehicleCapacity,
-              pickupLocation,
-              departureTime,
-              returnTime,
-              payment
-         FROM TRANSPORTATION
-        WHERE eventId = ?
-        ORDER BY departureTime`,
-      [eventId]
-    );
+    const transportationSummary = await buildTransportationSummary(eventId, event.nbOfHosts);
 
     const normalizeDate = (value) =>
       value instanceof Date ? value.toISOString() : value;
@@ -175,6 +173,7 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
               stockInfo: event.clothingStockInfo || null,
             }
           : null,
+        transportationAvailable: Boolean(transportationSummary.available),
       },
       client,
       hosts: hostRows.map((host) => ({
@@ -187,6 +186,7 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
         clothingSize: host.clothingSize,
         profileImage: host.profilePic,
         description: host.description,
+        needsRide: Boolean(host.needsRide),
         outfit: host.clothesId
           ? {
               clothesId: host.clothesId,
@@ -196,14 +196,14 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
             }
           : null,
       })),
-      transportation: transportRows.map((row) => ({
-        transportationId: row.transportationId,
-        vehicleCapacity: row.vehicleCapacity,
-        pickupLocation: row.pickupLocation,
-        departureTime: normalizeDate(row.departureTime),
-        returnTime: normalizeDate(row.returnTime),
-        payment: row.payment,
-      })),
+      transportation: {
+        ...transportationSummary,
+        trips: transportationSummary.trips.map((row) => ({
+          ...row,
+          departureTime: normalizeDate(row.departureTime),
+          returnTime: normalizeDate(row.returnTime),
+        })),
+      },
     });
   } catch (err) {
     console.error("Failed to fetch team view", err);
@@ -254,7 +254,10 @@ router.get("/:id", async (req, res) => {
                  WHERE ea.eventId = e.eventId
                    AND ea.status = 'accepted'
               ) AS acceptedHostsCount,
-              cs.stockInfo     AS clothingStockInfo
+              cs.stockInfo     AS clothingStockInfo,
+              EXISTS (
+                SELECT 1 FROM TRANSPORTATION t WHERE t.eventId = e.eventId
+              ) AS transportationAvailable
          FROM EVENTS e
     LEFT JOIN CLOTHING cl ON cl.clothesId = e.clothesId
     LEFT JOIN (
@@ -267,7 +270,11 @@ router.get("/:id", async (req, res) => {
       [id]
     );
     if (!rows.length) return res.status(404).json({ message: "Event not found" });
-    res.json(rows[0]);
+    const event = rows[0];
+    res.json({
+      ...event,
+      transportationAvailable: Boolean(event.transportationAvailable),
+    });
   } catch (err) {
     console.error("Failed to fetch event", err);
     res.status(500).json({ message: "Failed to fetch event" });

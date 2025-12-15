@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../services/api";
+import useBodyScrollLock from "../hooks/useBodyScrollLock";
 
 const getEmptyManualApplicant = () => ({
   firstName: "",
@@ -33,6 +34,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
   const [manualApplicant, setManualApplicant] = useState(getEmptyManualApplicant);
   const [requestedRole, setRequestedRole] = useState("host");
   const [requestDress, setRequestDress] = useState(false);
+  const [needsRide, setNeedsRide] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [resolvedOutfit, setResolvedOutfit] = useState(null);
@@ -151,6 +153,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
         notes: form.motivation.trim(),
         eventId: event.eventId,
         requestDress,
+        needsRide,
       });
 
       const payload = {
@@ -165,6 +168,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
       setManualApplicant(getEmptyManualApplicant());
       setRequestedRole("host");
       setRequestDress(false);
+      setNeedsRide(false);
       setErrors({});
     } catch (err) {
       alert('Application failed: ' + (err.response?.data?.message || 'Unknown error'));
@@ -173,19 +177,14 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
     }
   };
 
-  useEffect(() => {
-    const { overflow } = document.body.style;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = overflow;
-    };
-  }, []);
+  useBodyScrollLock(true);
 
   useEffect(() => {
     setForm(buildFormFromProfile());
     setManualApplicant(getEmptyManualApplicant());
     setRequestedRole("host");
     setRequestDress(false);
+    setNeedsRide(false);
     setErrors({});
   }, [buildFormFromProfile, currentUser]);
 
@@ -488,6 +487,26 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
                 />
                 <span>Request dress for this event</span>
               </label>
+              <label className="flex items-start gap-3 text-sm text-gray-700 rounded-xl border border-gray-200 bg-white p-3">
+                <input
+                  type="checkbox"
+                  checked={needsRide}
+                  onChange={(e) => setNeedsRide(e.target.checked)}
+                  className="mt-1 rounded border-gray-300"
+                />
+                <span>
+                  Need transportation?{" "}
+                  {event?.transportationAvailable
+                    ? "We'll reserve a seat on the coordinator's shuttle when your application is accepted."
+                    : "We'll record your preference so the coordinator can arrange transportation if it becomes available."}
+                </span>
+              </label>
+              {!event?.transportationAvailable && (
+                <p className="text-xs text-gray-500">
+                  Transportation for this event hasn't been arranged yet. If it becomes available, we'll use your
+                  preference above.
+                </p>
+              )}
             </div>
 
             <label className="flex items-start gap-2 text-sm text-gray-600 bg-cream p-3 rounded-xl border border-gray-200">

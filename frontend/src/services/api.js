@@ -33,6 +33,11 @@ export const adminAPI = {
   blockHostAccount: (userId) => api.patch(`/admins/hosts/${userId}/block`),
   listClients: () => api.get('/admins/clients'),
   getClientDetails: (clientId) => api.get(`/admins/clients/${clientId}`),
+  listClothing: () => api.get('/admins/clothing'),
+  createClothing: (payload) => api.post('/admins/clothing', payload),
+  addClothingStock: (clothesId, payload) => api.patch(`/admins/clothing/${clothesId}/stock`, payload),
+  saveTransportation: (eventId, payload) => api.post(`/transportation/${eventId}`, payload),
+  deleteTransportation: (eventId) => api.delete(`/transportation/${eventId}`),
 };
 
 export const userAPI = {

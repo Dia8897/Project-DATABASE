@@ -1,6 +1,21 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CheckCircle, XCircle, Calendar, MapPin, Users, Clock, Eye, Mail, Phone, User, X } from "lucide-react";
-import api from "../../services/api";
+import {
+  CheckCircle,
+  XCircle,
+  Calendar,
+  MapPin,
+  Users,
+  Clock,
+  Eye,
+  Mail,
+  Phone,
+  User,
+  X,
+  AlertTriangle,
+  Bus,
+} from "lucide-react";
+import api, { adminAPI } from "../../services/api";
+import useBodyScrollLock from "../../hooks/useBodyScrollLock";
 
 const CLIENT_FIELDS = ["clientFirstName", "clientLastName", "clientEmail", "clientPhone"];
 
@@ -13,6 +28,35 @@ const formatDate = (value) => {
     day: "numeric",
     year: "numeric",
   });
+};
+
+const formatDateTime = (value) => {
+  if (!value) return "TBA";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const toInputDateTime = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (num) => String(num).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}`;
+};
+
+const toIsoString = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
 };
 
 const toTitleCase = (value = "") =>
@@ -51,6 +95,7 @@ const normalizeRequest = (request) => {
           stockInfo: request.clothingStockInfo || null,
         }
       : null,
+    transportation: request.transportationSummary || null,
   };
 };
 
@@ -108,6 +153,10 @@ export default function EventRequests() {
   const [eventApplications, setEventApplications] = useState([]);
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [conflictModal, setConflictModal] = useState(null);
+  const [transportModal, setTransportModal] = useState(null);
+  const [transportSaving, setTransportSaving] = useState(false);
+  const [transportError, setTransportError] = useState("");
+  useBodyScrollLock(Boolean(detailModal || transportModal || conflictModal));
 
 
 
@@ -153,6 +202,14 @@ export default function EventRequests() {
   };
 
   const filteredRequests = requests; // No client-side filtering needed since API does it
+
+  const detailTransportUsage =
+    detailModal?.transportation?.worstCaseSeats > 0
+      ? Math.round(
+          (detailModal.transportation.actualNeededSeats /
+            Math.max(detailModal.transportation.worstCaseSeats, 1)) * 100
+        )
+      : null;
 
   const updateRequestStatus = (requestId, newStatus) => {
     setRequests((prev) =>
@@ -256,6 +313,75 @@ export default function EventRequests() {
     }
   };
 
+  const openTransportModal = (request) => {
+    const existingTrip = request.transportation?.trips?.[0] || null;
+    setTransportModal({
+      eventId: request.id,
+      title: request.title,
+      pickupLocation: existingTrip?.pickupLocation || "",
+      departureTime: toInputDateTime(existingTrip?.departureTime || ""),
+      returnTime: toInputDateTime(existingTrip?.returnTime || ""),
+      payment: existingTrip?.payment ?? "",
+    });
+    setTransportError("");
+  };
+
+  const closeTransportModal = () => {
+    setTransportModal(null);
+    setTransportError("");
+  };
+
+  const handleTransportFieldChange = (field, value) => {
+    setTransportModal((prev) => (prev ? { ...prev, [field]: value } : prev));
+  };
+
+  const handleTransportationSubmit = async (e) => {
+    e.preventDefault();
+    if (!transportModal) return;
+    if (!transportModal.pickupLocation.trim() || !transportModal.departureTime) {
+      setTransportError("Pickup location and departure time are required.");
+      return;
+    }
+    if (
+      transportModal.returnTime &&
+      new Date(transportModal.returnTime) < new Date(transportModal.departureTime)
+    ) {
+      setTransportError("Return time must be after departure.");
+      return;
+    }
+    const normalizedPayment = Number(transportModal.payment ?? 0);
+    if (Number.isNaN(normalizedPayment) || normalizedPayment < 0) {
+      setTransportError("Payment must be a positive number or zero.");
+      return;
+    }
+
+    setTransportSaving(true);
+    setTransportError("");
+    try {
+      const payload = {
+        pickupLocation: transportModal.pickupLocation.trim(),
+        departureTime: toIsoString(transportModal.departureTime),
+        returnTime: toIsoString(transportModal.returnTime),
+        payment: normalizedPayment,
+      };
+      await adminAPI.saveTransportation(transportModal.eventId, payload);
+      const { data } = await api.get(`/transportation/${transportModal.eventId}`);
+      setRequests((prev) =>
+        prev.map((req) =>
+          req.id === transportModal.eventId ? { ...req, transportation: data } : req
+        )
+      );
+      setDetailModal((prev) =>
+        prev && prev.id === transportModal.eventId ? { ...prev, transportation: data } : prev
+      );
+      closeTransportModal();
+    } catch (err) {
+      setTransportError(err.response?.data?.message || "Failed to save transportation.");
+    } finally {
+      setTransportSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Filter Section */}
@@ -306,6 +432,14 @@ export default function EventRequests() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {filteredRequests.map((request) => {
                 const isPending = request.status === "Pending";
+                const transport = request.transportation;
+                const showTransport = Boolean(transport?.available);
+                const usagePercent =
+                  transport?.worstCaseSeats > 0
+                    ? Math.round(
+                        (transport.actualNeededSeats / Math.max(transport.worstCaseSeats, 1)) * 100
+                      )
+                    : null;
                 return (
                   <article
                     key={request.id}
@@ -394,6 +528,45 @@ export default function EventRequests() {
                     </div>
 
                     <p className="text-sm text-gray-600 leading-relaxed">{request.description}</p>
+
+                    {isPending && (
+                      <button
+                        type="button"
+                        onClick={() => openTransportModal(request)}
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-dashed border-ocean/40 text-ocean text-sm font-semibold hover:bg-sky/10 transition"
+                      >
+                        <Bus size={16} />
+                        {transport?.available ? "Edit transportation details" : "Set transportation (optional)"}
+                      </button>
+                    )}
+
+                    {showTransport && (
+                      <div className="rounded-2xl border border-gray-100 p-4 bg-cream/40 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                            <Bus size={16} className="text-ocean" />
+                            <span>
+                              Transportation {transport.available ? "arranged" : "not arranged"}
+                            </span>
+                          </div>
+                          {usagePercent !== null && (
+                            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-white border border-gray-200 text-gray-600">
+                              {usagePercent}% utilization
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-4 text-xs text-gray-600">
+                          <span>Worst case: {transport.worstCaseSeats}</span>
+                          <span>Seats needed: {transport.actualNeededSeats}</span>
+                        </div>
+                        {transport.downgradeSuggested && (
+                          <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                            <AlertTriangle size={14} />
+                            <span>Demand is low. Consider downgrading transportation.</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
                       <button
@@ -510,6 +683,72 @@ export default function EventRequests() {
                 <p className="text-sm text-gray-600 leading-relaxed">{detailModal.description}</p>
                 <p className="text-xs text-gray-500">Event Type: {detailModal.type}</p>
               </div>
+
+              {detailModal.status === "Pending" && (
+                <button
+                  type="button"
+                  onClick={() => openTransportModal(detailModal)}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-dashed border-ocean/40 text-ocean text-sm font-semibold hover:bg-sky/10 transition"
+                >
+                  <Bus size={16} />
+                  {detailModal.transportation?.available
+                    ? "Edit transportation details"
+                    : "Set transportation (optional)"}
+                </button>
+              )}
+
+              {detailModal.transportation?.available && (
+                <div className="rounded-2xl border border-gray-100 p-4 space-y-3 bg-cream/40">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                      <Bus size={16} className="text-ocean" />
+                      <span>Transportation summary</span>
+                    </div>
+                    {detailTransportUsage !== null && (
+                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-white border border-gray-200 text-gray-600">
+                        {detailTransportUsage}% utilization
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide">Worst case</p>
+                      <p className="font-semibold text-gray-900">
+                        {detailModal.transportation.worstCaseSeats} seats
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide">Needed</p>
+                      <p className="font-semibold text-gray-900">
+                        {detailModal.transportation.actualNeededSeats} seats
+                      </p>
+                    </div>
+                  </div>
+                  {detailModal.transportation.downgradeSuggested && (
+                    <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                      <AlertTriangle size={14} />
+                      <span>Demand is low. Consider downgrading transportation.</span>
+                    </div>
+                  )}
+                  {detailModal.transportation.trips?.length > 0 && (
+                    <div className="space-y-2 text-sm text-gray-600">
+                      {detailModal.transportation.trips.map((trip) => (
+                        <div
+                          key={trip.transportationId}
+                          className="rounded-xl border border-gray-100 bg-white px-3 py-2"
+                        >
+                          <p className="text-xs uppercase tracking-wide text-gray-500">
+                            Pickup: {trip.pickupLocation}
+                          </p>
+                          <p>Departure: {formatDateTime(trip.departureTime)}</p>
+                          <p>Return: {trip.returnTime ? formatDateTime(trip.returnTime) : "TBD"}</p>
+                          <p>Payment: ${Number(trip.payment ?? 0).toFixed(2)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {detailModal.outfit && (
                 <div className="rounded-2xl border border-gray-100 p-4 flex gap-4 items-center">
@@ -640,6 +879,99 @@ export default function EventRequests() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {transportModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form
+            onSubmit={handleTransportationSubmit}
+            className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-6 space-y-6"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">Transportation</p>
+                <h3 className="text-xl font-semibold text-gray-900">
+                  {transportModal.title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeTransportModal}
+                className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="grid gap-4">
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-gray-700">Pickup Location *</label>
+                <input
+                  type="text"
+                  value={transportModal.pickupLocation}
+                  onChange={(e) => handleTransportFieldChange("pickupLocation", e.target.value)}
+                  className="w-full rounded-2xl border border-gray-200 px-4 py-2.5 focus:ring-2 focus:ring-ocean/40 focus:outline-none"
+                  placeholder="123 Main St, City"
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-gray-700">Departure Time *</label>
+                <input
+                  type="datetime-local"
+                  value={transportModal.departureTime}
+                  onChange={(e) => handleTransportFieldChange("departureTime", e.target.value)}
+                  className="w-full rounded-2xl border border-gray-200 px-4 py-2.5 focus:ring-2 focus:ring-ocean/40 focus:outline-none"
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-gray-700">Return Time</label>
+                <input
+                  type="datetime-local"
+                  value={transportModal.returnTime}
+                  onChange={(e) => handleTransportFieldChange("returnTime", e.target.value)}
+                  className="w-full rounded-2xl border border-gray-200 px-4 py-2.5 focus:ring-2 focus:ring-ocean/40 focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-gray-700">Payment (USD)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={transportModal.payment}
+                  onChange={(e) => handleTransportFieldChange("payment", e.target.value)}
+                  className="w-full rounded-2xl border border-gray-200 px-4 py-2.5 focus:ring-2 focus:ring-ocean/40 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {transportError && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {transportError}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeTransportModal}
+                className="px-5 py-2.5 rounded-2xl border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition"
+                disabled={transportSaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={transportSaving}
+                className="px-5 py-2.5 rounded-2xl bg-ocean text-white font-semibold disabled:opacity-60"
+              >
+                {transportSaving ? "Saving..." : "Save transportation"}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
