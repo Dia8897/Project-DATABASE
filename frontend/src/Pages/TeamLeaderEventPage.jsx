@@ -4,7 +4,7 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import AcceptedHosts from "../components/teamleader/AcceptedHosts";
 import EventPlanSeating from "../components/teamleader/EventPlanSeating";
-import { Calendar, MapPin, Users, Clock, Building2, Star } from "lucide-react";
+import { Calendar, MapPin, Users, Clock, Building2, Star, AlertTriangle, Bus } from "lucide-react";
 import api, { reviewAPI } from "../services/api";
 
 const formatDate = (value) => {
@@ -158,7 +158,7 @@ export default function TeamLeaderEventPage() {
   const [eventData, setEventData] = useState(null);
   const [client, setClient] = useState(null);
   const [hosts, setHosts] = useState([]);
-  const [transportation, setTransportation] = useState([]);
+  const [transportation, setTransportation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [attendance, setAttendance] = useState({});
@@ -200,6 +200,16 @@ export default function TeamLeaderEventPage() {
     [currentUserId, eventData?.teamLeaderId]
   );
 
+  const transportTrips = transportation?.trips || [];
+  const transportUsage =
+    transportation?.worstCaseSeats > 0
+      ? Math.round(
+          (transportation.actualNeededSeats /
+            Math.max(transportation.worstCaseSeats, 1)) * 100
+        )
+      : null;
+  const hasTransportation = Boolean(transportation?.available);
+
   useEffect(() => {
     if (!eventId) {
       setError("No event selected.");
@@ -221,7 +231,7 @@ export default function TeamLeaderEventPage() {
             rating: host.rating ?? null,
           }))
         );
-        setTransportation(data.transportation || []);
+        setTransportation(data.transportation || null);
       } catch (err) {
         const message = err.response?.data?.message || "Failed to load event overview";
         setError(message);
@@ -649,66 +659,104 @@ export default function TeamLeaderEventPage() {
           </div>
         </section>
 
-        {transportation.length > 0 && (
-          <section className="px-4">
-            <div className="max-w-6xl mx-auto space-y-4">
-              <div className="bg-white rounded-3xl shadow p-6 border border-gray-100">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">
-                      Logistics
-                    </p>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Transportation schedule
-                    </h3>
-                  </div>
-                  <span className="px-4 py-2 rounded-full bg-mint/30 text-green-700 text-sm font-semibold">
-                    {transportation.length} Trip{transportation.length > 1 ? "s" : ""}
-                  </span>
+        <section className="px-4">
+          <div className="max-w-6xl mx-auto space-y-4">
+            <div className="bg-white rounded-3xl shadow p-6 border border-gray-100">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">
+                    Logistics
+                  </p>
+                  <h3 className="text-lg font-semibold text-gray-900">Transportation</h3>
+                  <p className="text-sm text-gray-500">
+                    Coordinate pickup details and monitor seat usage.
+                  </p>
                 </div>
+                <span
+                  className={`px-4 py-2 rounded-full text-sm font-semibold ${
+                    hasTransportation ? "bg-mint/30 text-green-700" : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {hasTransportation ? "Arranged" : "Not arranged"}
+                </span>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {transportation.map((trip) => (
-                  <article
-                    key={trip.transportationId}
-                    className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">
-                          Pickup Location
-                        </p>
-                        <p className="text-base font-bold text-gray-900">{trip.pickupLocation}</p>
-                      </div>
-                      <div className="px-3 py-1 rounded-full bg-cream text-gray-700 text-xs font-semibold">
-                        Capacity {trip.vehicleCapacity}
-                      </div>
+              {hasTransportation ? (
+                <>
+                  <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                    <div className="bg-cream rounded-2xl px-4 py-3 border border-gray-100">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Worst case</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {transportation?.worstCaseSeats ?? eventData?.nbOfHosts ?? 0} seats
+                      </p>
                     </div>
-                    <div className="space-y-1 text-sm text-gray-600">
-                      <div className="flex items-center gap-2">
-                        <Clock size={16} className="text-ocean" />
-                        <span>Departure: {formatDateTime(trip.departureTime)}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock size={16} className="text-ocean" />
-                        <span>Return: {formatDateTime(trip.returnTime)}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Users size={16} className="text-ocean" />
-                        <span>{trip.vehicleCapacity} seats reserved</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Building2 size={16} className="text-ocean" />
-                        <span>Compensation: ${Number(trip.payment ?? 0).toFixed(2)}</span>
-                      </div>
+                    <div className="bg-cream rounded-2xl px-4 py-3 border border-gray-100">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Requested</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {transportation?.actualNeededSeats ?? 0} seats
+                      </p>
                     </div>
-                  </article>
-                ))}
-              </div>
+                  </div>
+                  {transportUsage !== null && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Utilization: <span className="font-semibold text-gray-800">{transportUsage}%</span>
+                    </p>
+                  )}
+                  {transportation?.downgradeSuggested && (
+                    <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                      <AlertTriangle size={14} />
+                      <span>Demand is low. Consider scaling down transportation.</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-dashed border-gray-200 bg-cream/40 px-4 py-3 text-sm text-gray-600">
+                  Transportation has not been arranged for this event. Coordinate host arrivals individually.
+                </div>
+              )}
             </div>
-          </section>
-        )}
+
+            {hasTransportation && (
+              transportTrips.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {transportTrips.map((trip) => (
+                    <article
+                      key={trip.transportationId}
+                      className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">
+                            Pickup Location
+                          </p>
+                          <p className="text-base font-bold text-gray-900">{trip.pickupLocation}</p>
+                        </div>
+                        <div className="px-3 py-1 rounded-full bg-cream text-gray-700 text-xs font-semibold">
+                          ${Number(trip.payment ?? 0).toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                          <Clock size={16} className="text-ocean" />
+                          <span>Departure: {formatDateTime(trip.departureTime)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock size={16} className="text-ocean" />
+                          <span>
+                            Return: {trip.returnTime ? formatDateTime(trip.returnTime) : "TBA"}
+                          </span>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-gray-100 p-6 text-sm text-gray-500">
+                  Transportation details will appear here once the coordinator adds the pickup schedule.
+                </div>
+              )
+            )}
+          </div>
+        </section>
 
         <section className="px-4 pb-16">
           <div className="max-w-6xl mx-auto">

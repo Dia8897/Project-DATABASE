@@ -55,6 +55,8 @@ const normalizeEvent = (event = {}) => {
     acceptedHostsCount: event.acceptedHostsCount ?? event.filledHosts ?? 0,
     status: normalizedStatus,
     imageUrl: event.imageUrl || null,
+    transportationAvailable: Boolean(event.transportationAvailable),
+    transportation: event.transportationSummary || event.transportation || null,
   };
 };
 

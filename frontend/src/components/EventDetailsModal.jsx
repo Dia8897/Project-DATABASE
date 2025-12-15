@@ -1,4 +1,7 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { Bus, AlertTriangle } from "lucide-react";
+import api from "../services/api";
+import useBodyScrollLock from "../hooks/useBodyScrollLock";
 
 const DetailRow = ({ label, value }) => {
   if (!value) return null;
@@ -10,20 +13,63 @@ const DetailRow = ({ label, value }) => {
   );
 };
 
+const formatDateTime = (value) => {
+  if (!value) return "TBA";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "TBA";
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 export default function EventDetailsModal({
   event,
   onClose,
   onApply,
   disableApply = false,
 }) {
+  const [transportInfo, setTransportInfo] = useState(null);
+  const [transportLoading, setTransportLoading] = useState(false);
+  const [transportError, setTransportError] = useState("");
+  useBodyScrollLock(Boolean(event));
+
   useEffect(() => {
-    if (!event) return undefined;
-    const { overflow } = document.body.style;
-    document.body.style.overflow = "hidden";
+    if (!event?.eventId) {
+      setTransportInfo(null);
+      setTransportError("");
+      return undefined;
+    }
+    if (!event.transportationAvailable && !event.transportation?.available) {
+      setTransportInfo(event.transportation || null);
+      setTransportError("");
+      return undefined;
+    }
+    let cancelled = false;
+    setTransportLoading(true);
+    setTransportError("");
+    api
+      .get(`/transportation/${event.eventId}`)
+      .then(({ data }) => {
+        if (!cancelled) {
+          setTransportInfo(data);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setTransportError(err.response?.data?.message || "Failed to load transportation details");
+          setTransportInfo(event.transportation || null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTransportLoading(false);
+      });
     return () => {
-      document.body.style.overflow = overflow;
+      cancelled = true;
     };
-  }, [event]);
+  }, [event?.eventId, event?.transportationAvailable, event?.transportation]);
 
   if (!event) return null;
 
@@ -38,6 +84,14 @@ export default function EventDetailsModal({
     { label: "Dress code", value: event.outfit?.label || event.dressCode || "Not specified" },
     { label: "Hosts requested", value: `${filled} / ${requested || "?"}` },
   ];
+  const transportSummary = transportInfo || event.transportation || null;
+  const transportUsage =
+    transportSummary?.worstCaseSeats > 0
+      ? Math.round(
+          (transportSummary.actualNeededSeats /
+            Math.max(transportSummary.worstCaseSeats, 1)) * 100
+        )
+      : null;
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
@@ -113,6 +167,59 @@ export default function EventDetailsModal({
             {info.map(({ label, value }) => (
               <DetailRow key={label} label={label} value={value} />
             ))}
+          </div>
+
+          <div className="rounded-2xl border border-gray-100 p-4 space-y-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <Bus size={16} className="text-ocean" />
+              <span>Transportation</span>
+            </div>
+            {transportLoading ? (
+              <p className="text-sm text-gray-500">Loading transportation details...</p>
+            ) : transportSummary?.available ? (
+              <>
+                <div className="flex flex-wrap gap-4 text-xs text-gray-600">
+                  <span>Worst case: {transportSummary.worstCaseSeats} seats</span>
+                  <span>Requested: {transportSummary.actualNeededSeats} seats</span>
+                  {transportUsage !== null && <span>Usage: {transportUsage}%</span>}
+                </div>
+                {transportSummary.downgradeSuggested && (
+                  <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                    <AlertTriangle size={14} />
+                    <span>Demand is low. Seats may be scaled down.</span>
+                  </div>
+                )}
+                {transportSummary.trips?.length > 0 && (
+                  <div className="space-y-2 text-sm text-gray-600">
+                    {transportSummary.trips.map((trip) => (
+                      <div
+                        key={trip.transportationId}
+                        className="rounded-xl bg-cream px-3 py-2 border border-gray-100"
+                      >
+                        <p className="text-xs uppercase text-gray-500">
+                          Pickup: {trip.pickupLocation}
+                        </p>
+                        <p>Departure: {formatDateTime(trip.departureTime)}</p>
+                        <p>Return: {trip.returnTime ? formatDateTime(trip.returnTime) : "TBA"}</p>
+                        <p>Compensation: ${Number(trip.payment ?? 0).toFixed(2)}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-gray-500">
+                  Check the “Need transportation?” option below if you'd like a seat reserved.
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500">
+                Transportation is not available for this event. Please plan your own arrival.
+              </p>
+            )}
+            {transportError && (
+              <p className="text-xs text-red-500">
+                {transportError}
+              </p>
+            )}
           </div>
 
           {event.requirements?.length > 0 && (

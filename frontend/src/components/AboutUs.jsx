@@ -3,7 +3,7 @@ import React from "react";
 // AboutUsSection: full-width jumbotron with background, text, and CTA style
 export default function AboutUsSection() {
     return (
-        <section className="w-full bg-rose text-white py-32 px-6">
+        <section id="about" className="w-full bg-rose text-white py-32 px-6">
             <div className="max-w-5xl mx-auto text-center">
                 {/* Title */}
                 <h2 className="text-4xl md:text-5xl font-bold mb-6">

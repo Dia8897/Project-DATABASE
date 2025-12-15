@@ -11,6 +11,7 @@ import {
   CheckCircle,
   Clock,
   AlertTriangle,
+  Bus,
 } from "lucide-react";
 
 export default function AcceptedHosts({
@@ -139,6 +140,10 @@ export default function AcceptedHosts({
                     {host.outfit?.description && (
                       <p className="text-xs text-gray-500 italic">"{host.outfit.description}"</p>
                     )}
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Bus size={14} className="text-ocean flex-shrink-0" />
+                      <span>{host.needsRide ? "Needs transportation" : "Self-arrival"}</span>
+                    </div>
                   </div>
 
                   {/* Actions */}

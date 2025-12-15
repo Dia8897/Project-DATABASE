@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import ClientEventList from "../components/ClientEventList";
@@ -34,6 +34,7 @@ const formatDate = (dateString) => {
 
 export default function ClientPage() {
   const [activeTab, setActiveTab] = useState("requests");
+  const navRef = useRef(null);
   const [client, setClient] = useState(null);
   const [eventType, setEventType] = useState("Wedding");
   const [startDateTime, setStartDateTime] = useState(null);
@@ -58,6 +59,18 @@ export default function ClientPage() {
   const [clothingOptions, setClothingOptions] = useState([]);
   const [clothingError, setClothingError] = useState("");
   const [selectedClothesId, setSelectedClothesId] = useState(null);
+  const scrollTabsIntoView = () => {
+    if (!navRef.current) return;
+    const offset = 100;
+    const elementTop = navRef.current.getBoundingClientRect().top + window.scrollY;
+    const target = Math.max(elementTop - offset, 0);
+    window.scrollTo({ top: target, behavior: "smooth" });
+  };
+
+  const handleTabChange = (nextTab) => {
+    setActiveTab(nextTab);
+    requestAnimationFrame(scrollTabsIntoView);
+  };
 
   const resolvePicture = (picture) => {
     const origin = (api.defaults.baseURL || "").replace(/\/api$/, "");
@@ -171,7 +184,7 @@ export default function ClientPage() {
       };
 
       setEvents((prev) => [...prev, newEvent]);
-      setActiveTab("requests");
+      handleTabChange("requests");
       setStartDateTime(null);
       setEndDateTime(null);
       setDescription("");
@@ -272,11 +285,11 @@ export default function ClientPage() {
       <div className="pt-24 space-y-8">
         <ClientProfileHeader client={client} stats={clientStats} />
 
-        <section className="px-4">
+        <section className="px-4" ref={navRef}>
           <div className="max-w-6xl mx-auto">
             <div className="bg-white rounded-3xl shadow-lg p-2 flex gap-2">
               <button
-                onClick={() => setActiveTab("requests")}
+                onClick={() => handleTabChange("requests")}
                 className={`flex-1 px-6 py-4 rounded-2xl text-base font-semibold transition ${
                   activeTab === "requests"
                     ? "bg-ocean text-white shadow-md"
@@ -286,7 +299,7 @@ export default function ClientPage() {
                 My Requests
               </button>
               <button
-                onClick={() => setActiveTab("new")}
+                onClick={() => handleTabChange("new")}
                 className={`flex-1 px-6 py-4 rounded-2xl text-base font-semibold transition ${
                   activeTab === "new"
                     ? "bg-ocean text-white shadow-md"
@@ -296,7 +309,7 @@ export default function ClientPage() {
                 New Request
               </button>
               <button
-                onClick={() => setActiveTab("settings")}
+                onClick={() => handleTabChange("settings")}
                 className={`flex-1 px-6 py-4 rounded-2xl text-base font-semibold transition ${
                   activeTab === "settings"
                     ? "bg-ocean text-white shadow-md"

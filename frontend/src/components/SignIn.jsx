@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Mail, Lock, User, ArrowRight } from "lucide-react";
 import api, { hostAPI, clientAPI } from "../services/api";
+import useBodyScrollLock from "../hooks/useBodyScrollLock";
 
 const AUTH_EVENT = "gatherly-auth";
 const INITIAL_FORM = {
@@ -25,14 +26,7 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
   const [formData, setFormData] = useState(INITIAL_FORM);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!show) return undefined;
-    const { overflow } = document.body.style;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = overflow;
-    };
-  }, [show]);
+  useBodyScrollLock(show);
 
   if (!show) return null;
 

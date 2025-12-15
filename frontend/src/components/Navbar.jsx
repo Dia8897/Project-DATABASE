@@ -69,6 +69,42 @@ export default function Navbar() {
     const isLoggedIn = Boolean(session.token && session.user);
     const displayRole = session.userType ? session.userType.replace(/_/g, " ") : null;
 
+    const eventsLink =
+        session.userType === "admin"
+            ? { label: "Review Requests", path: "/admin" }
+            : session.userType === "client"
+            ? { label: "My Requests", path: "/client" }
+            : session.userType === "host"
+            ? { label: "Browse Events", path: "/events" }
+            : { label: "Our Events", path: "/events" };
+
+    const homeLink =
+        session.userType === "admin"
+            ? { label: "Admin Home", path: "/admin" }
+            : session.userType === "client"
+            ? { label: "Client Home", path: "/client" }
+            : session.userType === "host"
+            ? { label: "Host Home", path: "/profile" }
+            : { label: "Home", path: "/" };
+
+    const navLinks = [
+        homeLink,
+        { label: "About", path: "#about" },
+        eventsLink,
+        { label: "Contact", path: "#contact" },
+    ];
+
+    const scrollToSection = (hash) => {
+        if (!hash?.startsWith("#") || typeof document === "undefined") return false;
+        const id = hash.slice(1);
+        const element = document.getElementById(id);
+        if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "start" });
+            return true;
+        }
+        return false;
+    };
+
     const profilePath =
         session.userType === "admin"
             ? "/admin/profile"
@@ -147,10 +183,23 @@ export default function Navbar() {
 
                 {/* Desktop Links */}
                 <ul className="hidden md:flex items-center space-x-8 text-gray-700 font-medium">
-                    <li><Link to="/" className="hover:text-white transition">Home</Link></li>
-                    <li className="hover:text-white transition cursor-pointer">About</li>
-                    <li><Link to="/events" className="hover:text-white transition">Our Events</Link></li>
-                    <li className="hover:text-white transition cursor-pointer">Contact</li>
+                    {navLinks.map((link) => (
+                        <li key={link.label}>
+                            {link.path.startsWith("#") ? (
+                                <button
+                                    type="button"
+                                    className="hover:text-white transition cursor-pointer"
+                                    onClick={() => scrollToSection(link.path)}
+                                >
+                                    {link.label}
+                                </button>
+                            ) : (
+                                <Link to={link.path} className="hover:text-white transition">
+                                    {link.label}
+                                </Link>
+                            )}
+                        </li>
+                    ))}
                 </ul>
 
                 {/* Auth Section - Only shows when logged in */}
@@ -160,7 +209,7 @@ export default function Navbar() {
                             {showTeamLeaderLink && (
                                 <button
                                     onClick={handleTeamLeaderNavigate}
-                                    className="px-4 py-2 rounded-lg bg-white/20 text-white font-semibold hover:bg-white/30 transition"
+                                    className="px-3.5 py-1.5 rounded-full bg-white/90 text-rose font-semibold text-sm border border-white/70 shadow-sm hover:bg-white transition-colors"
                                 >
                                     Team Leader
                                 </button>
@@ -200,10 +249,31 @@ export default function Navbar() {
             {mobileMenuOpen && (
                 <div className="md:hidden bg-white shadow-lg">
                     <ul className="px-6 py-4 space-y-4 text-gray-700 font-medium">
-                        <li><Link to="/" className="hover:text-ocean transition block">Home</Link></li>
-                        <li className="hover:text-ocean transition cursor-pointer">About</li>
-                        <li><Link to="/events" className="hover:text-ocean transition block">Our Events</Link></li>
-                        <li className="hover:text-ocean transition cursor-pointer">Contact</li>
+                        {navLinks.map((link) => (
+                            <li key={link.label}>
+                                {link.path.startsWith("#") ? (
+                                    <button
+                                        type="button"
+                                        className="hover:text-ocean transition block text-left"
+                                        onClick={() => {
+                                            if (scrollToSection(link.path)) {
+                                                setMobileMenuOpen(false);
+                                            }
+                                        }}
+                                    >
+                                        {link.label}
+                                    </button>
+                                ) : (
+                                    <Link
+                                        to={link.path}
+                                        className="hover:text-ocean transition block"
+                                        onClick={() => setMobileMenuOpen(false)}
+                                    >
+                                        {link.label}
+                                    </Link>
+                                )}
+                            </li>
+                        ))}
                     </ul>
 
                     {isLoggedIn && (
@@ -211,7 +281,7 @@ export default function Navbar() {
                             {showTeamLeaderLink && (
                                 <button
                                     onClick={handleTeamLeaderNavigate}
-                                    className="w-full px-4 py-3 bg-mint text-white rounded-lg font-semibold flex items-center justify-center gap-2"
+                                    className="w-full px-4 py-2.5 rounded-full bg-white/90 text-rose font-semibold text-sm border border-rose/30 shadow-sm"
                                 >
                                     Team Leader
                                 </button>
