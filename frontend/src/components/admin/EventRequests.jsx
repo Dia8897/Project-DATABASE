@@ -88,6 +88,8 @@ const normalizeRequest = (request) => {
     clientPhone: request.clientPhone || "Not provided",
     clientAddress: request.clientAddress || "",
     date: formatDate(request.startsAt),
+    startDateTime: formatDateTime(request.startsAt),
+    endDateTime: formatDateTime(request.endsAt),
     location: request.location || "Location TBA",
     nbOfHosts: request.nbOfHosts || 0,
     description: request.description || "No description provided.",
@@ -608,6 +610,14 @@ export default function EventRequests() {
                         <span>{request.location}</span>
                       </div>
                       <div className="flex items-center gap-2">
+                        <Clock size={16} className="text-ocean" />
+                        <span>Starts: {request.startDateTime || "TBA"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Clock size={16} className="text-ocean" />
+                        <span>Ends: {request.endDateTime || "TBA"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
                         <Users size={16} className="text-ocean" />
                         <span>{request.nbOfHosts} hosts</span>
                       </div>
@@ -745,7 +755,11 @@ export default function EventRequests() {
                   </div>
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Clock size={16} className="text-ocean" />
-                    <span>{detailModal.date}</span>
+                    <span>Starts: {detailModal.startDateTime || "TBA"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Clock size={16} className="text-ocean" />
+                    <span>Ends: {detailModal.endDateTime || "TBA"}</span>
                   </div>
                 </div>
                 <div className="rounded-2xl border border-gray-100 p-4 space-y-3">

@@ -4,9 +4,9 @@ import { verifyToken, isAdmin, isUser, isUserOrAdmin, requireActiveHost } from "
 
 const router = Router();
 
-/* --------------------- COMMON HELPERS --------------------- */
 
-// Check missing/empty fields
+
+//validate required fields
 function validateRequiredFields(body, requiredFields) {
   const missingFields = requiredFields.filter(
     (field) => !body[field] || body[field].toString().trim() === ""
@@ -26,9 +26,9 @@ function validateRequiredFields(body, requiredFields) {
   return { ok: true };
 }
 
-// Validate date, that it's today or in future, time format, and start < end
+//validate date and time
 function validateDateAndTime(date, startTime, endTime) {
-  // ---------- DATE VALIDATION ----------
+
   const dateOnly = typeof date === "string" ? date.split("T")[0] : "";
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -52,7 +52,7 @@ function validateDateAndTime(date, startTime, endTime) {
     };
   }
 
-  // ---------- TIME VALIDATION ----------
+//validate time format HH:MM:SS
   const timeRegex = /^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/;
 
   if (!timeRegex.test(startTime)) {
@@ -91,9 +91,8 @@ function validateDateAndTime(date, startTime, endTime) {
   };
 }
 
-/* --------------------- ROUTES --------------------- */
 
-// GET all trainings (includes enrollment counts)
+//GET all trainings (user/admin)
 router.get("/", verifyToken, isUserOrAdmin, async (_req, res) => {
   try {
     const [rows] = await db.query(
@@ -134,7 +133,7 @@ router.get("/:id", verifyToken, isUserOrAdmin, async (req, res) => {
   }
 });
 
-// Apply to a training (host/user)
+// apply to a training (host/user)
 router.post("/:id/apply", verifyToken, requireActiveHost, async (req, res) => {
   const trainingId = parseInt(req.params.id, 10);
   if (Number.isNaN(trainingId)) {
@@ -142,7 +141,7 @@ router.post("/:id/apply", verifyToken, requireActiveHost, async (req, res) => {
   }
 
   try {
-    // Ensure training exists
+    // make sure training exists
     const [trainingRows] = await db.query("SELECT trainingId FROM TRAINING WHERE trainingId = ?", [trainingId]);
     if (!trainingRows.length) {
       return res.status(404).json({ message: "Training not found" });
@@ -175,7 +174,7 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
     "date",
   ];
 
-  // 1) Required fields
+  //required fields
   const reqCheck = validateRequiredFields(req.body, requiredFields);
   if (!reqCheck.ok) {
     return res.status(reqCheck.status).json(reqCheck.body);
@@ -183,7 +182,7 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
 
   const { title, type, description, startTime, endTime, location, date } = req.body;
 
-  // 2) Date & time
+  //date & time
   const dtCheck = validateDateAndTime(date, startTime, endTime);
   if (!dtCheck.ok) {
     return res.status(dtCheck.status).json(dtCheck.body);
@@ -191,7 +190,7 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
 
   const { dateOnly } = dtCheck;
 
-  // 3) INSERT
+  // CREATE
   try {
     const [result] = await db.query(
       `INSERT INTO TRAINING (title, type, description, startTime, endTime, location, date)
@@ -220,7 +219,7 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
     "date",
   ];
 
-  // 1) Required fields
+  //required fields
   const reqCheck = validateRequiredFields(req.body, requiredFields);
   if (!reqCheck.ok) {
     return res.status(reqCheck.status).json(reqCheck.body);
@@ -229,7 +228,7 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   const { id } = req.params;
   const { title, type, description, startTime, endTime, location, date } = req.body;
 
-  // 2) Date & time
+  //date & time
   const dtCheck = validateDateAndTime(date, startTime, endTime);
   if (!dtCheck.ok) {
     return res.status(dtCheck.status).json(dtCheck.body);
@@ -237,7 +236,7 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
 
   const { dateOnly } = dtCheck;
 
-  // 3) UPDATE
+  //update
   try {
     const [result] = await db.query(
       `UPDATE TRAINING
@@ -275,7 +274,7 @@ router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
   }
 });
 
-// List attendees for a training (admin only)
+//list attendees for a training (admin only)
 router.get("/:id/attendees", verifyToken, isAdmin, async (req, res) => {
   const trainingId = parseInt(req.params.id, 10);
   if (Number.isNaN(trainingId)) {
