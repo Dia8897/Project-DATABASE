@@ -410,27 +410,6 @@ router.get("/:id", verifyToken, isAdmin, async (req, res) => {
   }
 });
 
-// POST /api/users - Create a new user
-// router.post("/", verifyToken, isAdmin, async (req, res) => {
-//   const { fName, lName, email, password, phoneNb, profilePic, age, gender,
-//  address, yearsOfExperience } = req.body;
-//  const hashedPass = await bcrypt.hash(password, 10);
-//   try {
-    
-//     const [result] = await db.query(
-//       `INSERT INTO ADMINS (fName, lName, email, password, phoneNb, profilePic, age, gender,
-//  address, yearsOfExperience)
-//        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-//       [fName, lName, email, hashedPass, phoneNb, profilePic, age, gender,
-//  address, yearsOfExperience]
-//     );
-//     res.status(201).json({ adminId: result.insertId, message: "Admin created" });
-//   } catch (err) {
-//     console.error("Failed to create admin", err);
-//     res.status(500).json({ message: "Failed to create admin" });
-//   }
-// });
-
 router.post("/", async (req, res) => {
   const validationErrors = validateAdminPayload(req.body);
   if (validationErrors.length) {
@@ -465,29 +444,6 @@ router.post("/", async (req, res) => {
     handleDbError(err, res, "Failed to create admin");
   }
 });
-
-
-// PUT /api/users/:id - Update a user
-// router.put("/:id", verifyToken, isAdmin, async (req, res) => {
-//   const { id } = req.params;
-//   const { fName, lName, email, password, phoneNb, profilePic, age, gender,
-//  address, yearsOfExperience } = req.body;
-//   try {
-//     const [result] = await db.query(
-//       `UPDATE ADMINS SET fName = ?, lName = ?, email = ?, password = ?, phoneNb = ?, profilePic = ?, age = ?, gender = ?, address = ?, yearsOfExperience = ?
-//        WHERE adminId = ?`,
-//       [fName, lName, email, password, phoneNb, profilePic, age, gender,
-//  address, yearsOfExperience, id]
-//     );
-//     if (result.affectedRows === 0) {
-//       return res.status(404).json({ message: "Admin not found" });
-//     }
-//     res.json({ message: "Admin updated" });
-//   } catch (err) {
-//     console.error("Failed to update admin", err);
-//     res.status(500).json({ message: "Failed to update admin" });
-//   }
-// });
 
 
 router.put("/:id", verifyToken, async (req, res) => {
@@ -756,23 +712,6 @@ router.put("/host-applications/:id/approve", verifyToken, isAdmin, async (req, r
   }
 });
 
-// Reject host application
-// router.put("/host-applications/:id/reject", verifyToken, isAdmin, async (req, res) => {
-//   const { id } = req.params;
-//   try {
-//     const [result] = await db.query(
-//       "UPDATE EVENT_APP SET status = 'rejected', adminId = ?, decidedAt = NOW() WHERE eventAppId = ? AND status = 'pending'",
-//       [req.user.id, id]
-//     );
-//     if (result.affectedRows === 0) {
-//       return res.status(404).json({ message: "Application not found or already processed" });
-//     }
-//     res.json({ message: "Application rejected" });
-//   } catch (err) {
-//     console.error("Failed to reject application", err);
-//     res.status(500).json({ message: "Failed to reject application" });
-//   }
-// });
 
 
 export default router;
