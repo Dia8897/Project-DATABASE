@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { User, CheckCircle, XCircle, Mail, Phone, Award, Languages, Eye, X, MapPin } from "lucide-react";
+import { User, CheckCircle, XCircle, Mail, Phone, Award, Eye, X, MapPin } from "lucide-react";
 import api, { adminAPI } from "../../services/api";
 import useBodyScrollLock from "../../hooks/useBodyScrollLock";
 
@@ -506,10 +506,6 @@ export default function HostApplications() {
                             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-gray-200 text-gray-700 font-medium">
                               Size: {host.clothingSize || "?"}
                             </span>
-                            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-gray-200 text-gray-700 font-medium">
-                              <Languages size={16} className="text-ocean" />
-                              Languages coming soon
-                            </span>
                           </div>
                         </div>
                       </div>
@@ -673,10 +669,6 @@ export default function HostApplications() {
                             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-gray-200 text-gray-700 font-medium">
                               Size: {app.clothingSize}
                             </span>
-                            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-gray-200 text-gray-700 font-medium">
-                              <Languages size={16} className="text-ocean" />
-                              Languages coming soon
-                            </span>
                           </div>
                         </div>
                       </div>
@@ -732,7 +724,7 @@ export default function HostApplications() {
 
       {profileModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full relative p-6 space-y-5">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full relative p-6 space-y-5 max-h-[85vh] overflow-y-auto">
             <button
               type="button"
               onClick={() => setProfileModal(null)}
@@ -812,10 +804,6 @@ export default function HostApplications() {
                 <div className="flex flex-wrap gap-2 text-sm text-gray-600">
                   <span className="px-3 py-1 rounded-full bg-cream text-gray-800 font-semibold">
                     Clothing Size: {profileSummary?.clothingSize || profileModal.clothingSize}
-                  </span>
-                  <span className="px-3 py-1 rounded-full bg-cream text-gray-800 font-semibold inline-flex items-center gap-2">
-                    <Languages size={16} className="text-ocean" />
-                    Languages coming soon
                   </span>
                 </div>
               </div>

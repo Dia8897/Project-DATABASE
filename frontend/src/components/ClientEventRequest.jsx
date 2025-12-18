@@ -1,4 +1,5 @@
 import React from "react";
+import api from "../services/api";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -23,6 +24,15 @@ const timeOptions = [
   "13:00", "14:00", "15:00", "16:00", "17:00",
   "18:00", "19:00", "20:00", "21:00","22:00","23:00","24:00"
 ];
+
+const buildAssetUrl = (path) => {
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  const base = (api.defaults.baseURL || "").replace(/\/api\/?$/, "");
+  if (!base) return path;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${normalizedPath}`;
+};
 
 const locationOptions = [
   "Grand Hyatt Beirut",
@@ -155,7 +165,7 @@ export default function ClientEventRequest({
                         {item.picture && (
                           <div className="h-16 w-16 rounded-xl overflow-hidden bg-cream flex-shrink-0">
                             <img
-                              src={item.picture}
+                              src={buildAssetUrl(item.picture)}
                               alt={item.clothingLabel}
                               className="h-full w-full object-cover"
                             />

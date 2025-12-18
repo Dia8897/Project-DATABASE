@@ -24,6 +24,7 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [activeRole, setActiveRole] = useState(initialRole);
   const [formData, setFormData] = useState(INITIAL_FORM);
+  const [status, setStatus] = useState(null);
   const navigate = useNavigate();
 
   useBodyScrollLock(show);
@@ -35,16 +36,18 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
     { id: "client", label: "Client"},
     { id: "admin", label: "Admin"},
   ];
+  const visibleRoles = isSignUp ? roles.filter((role) => role.id !== "admin") : roles;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setStatus(null);
     if (isSignUp) {
       if (!["host", "client"].includes(activeRole)) {
-        alert("Sign-up is currently available for hosts and clients only.");
+        setStatus({ type: "error", text: "Sign-up is currently available for hosts and clients only." });
         return;
       }
       if (formData.password !== formData.confirmPassword) {
-        alert("Passwords do not match.");
+        setStatus({ type: "error", text: "Passwords do not match." });
         return;
       }
       try {
@@ -59,39 +62,45 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
           address: formData.address.trim(),
         };
         let response;
-        if (activeRole === "host") {
-          const payload = {
-            ...commonPayload,
-            clothingSize: formData.clothingSize,
-            profilePic: formData.profilePic?.trim() || undefined,
-            description: formData.description?.trim() || undefined,
-          };
-          response = await hostAPI.signupHost(payload);
-          alert("Host account created. Check your inbox for approval updates.");
-        } else {
-          const payload = {
-            ...commonPayload,
-          };
-          response = await clientAPI.signupClient(payload);
-          alert("Client account created. You can now sign in and start booking events.");
+          if (activeRole === "host") {
+            const payload = {
+              ...commonPayload,
+              clothingSize: formData.clothingSize,
+              profilePic: formData.profilePic?.trim() || undefined,
+              description: formData.description?.trim() || undefined,
+            };
+            response = await hostAPI.signupHost(payload);
+            setStatus({
+              type: "success",
+              text: "Host account created. Check your inbox for approval updates.",
+            });
+          } else {
+            const payload = {
+              ...commonPayload,
+            };
+            response = await clientAPI.signupClient(payload);
+            setStatus({
+              type: "success",
+              text: "Client account created. You can now sign in and start booking events.",
+            });
+          }
+          setIsSignUp(false);
+          const createdEmail = response?.data?.user?.email || response?.data?.client?.email || formData.email;
+          setFormData((prev) => ({
+            ...INITIAL_FORM,
+            email: createdEmail,
+          }));
+        } catch (err) {
+          const message = err.response?.data?.message || "Sign-up failed";
+          const validationErrors = err.response?.data?.errors;
+          const details = validationErrors?.length ? `\u2022 ${validationErrors.join("\n\u2022 ")}` : "";
+          setStatus({
+            type: "error",
+            text: [message, details].filter(Boolean).join("\n"),
+          });
         }
-        setIsSignUp(false);
-        const createdEmail = response?.data?.user?.email || response?.data?.client?.email || formData.email;
-        setFormData((prev) => ({
-          ...INITIAL_FORM,
-          email: createdEmail,
-        }));
-      } catch (err) {
-        const message = err.response?.data?.message || "Sign-up failed";
-        const validationErrors = err.response?.data?.errors;
-        alert(
-          validationErrors?.length
-            ? `${message}\n- ${validationErrors.join("\n- ")}`
-            : message
-        );
+        return;
       }
-      return;
-    }
 
     try {
       const apiRole = activeRole === "host" ? "user" : activeRole;
@@ -130,6 +139,16 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
     }
   };
 
+  const renderStatus = () => {
+    if (!status?.text) return null;
+    const baseClasses = "px-4 py-3 rounded-xl text-sm border whitespace-pre-line";
+    const styles =
+      status.type === "success"
+        ? "bg-mint/30 border-mint/50 text-green-700"
+        : "bg-rose/10 border-rose/30 text-rose-700";
+    return <div className={`${baseClasses} ${styles}`}>{status.text}</div>;
+  };
+
   return (
     <div
       className="fixed inset-0 bg-gray-900/60 flex justify-center items-center z-50 backdrop-blur-sm p-4"
@@ -161,7 +180,7 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
             I am a
           </p>
           <div className="flex gap-2">
-            {roles.map((role) => (
+            {visibleRoles.map((role) => (
               <button
                 key={role.id}
                 onClick={() => setActiveRole(role.id)}
@@ -185,6 +204,7 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+          {renderStatus()}
           {isSignUp && (
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -195,7 +215,7 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
                     type="text"
                     value={formData.firstName}
                     onChange={handleInputChange("firstName")}
-                    placeholder="John"
+                    placeholder=""
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean"
                   />
                 </div>
@@ -206,7 +226,7 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
                   type="text"
                   value={formData.lastName}
                   onChange={handleInputChange("lastName")}
-                  placeholder="Doe"
+                  placeholder=""
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean"
                 />
               </div>
@@ -352,14 +372,6 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
             </div>
           )}
 
-          {!isSignUp && (
-            <div className="flex justify-end">
-              <button type="button" className="text-sm text-ocean hover:underline">
-                Forgot password?
-              </button>
-            </div>
-          )}
-
           <button
             type="submit"
             className="w-full py-3 rounded-xl text-white font-semibold transition flex items-center justify-center gap-2 group"
@@ -379,7 +391,13 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
           <p className="text-sm text-gray-600">
             {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
             <button
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setStatus(null);
+                if (!isSignUp && activeRole === "admin") {
+                  setActiveRole("host");
+                }
+              }}
               className="text-ocean font-semibold hover:underline"
             >
               {isSignUp ? "Sign In" : "Sign Up"}

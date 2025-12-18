@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { adminAPI } from "../../services/api";
+import api, { adminAPI, clothingAPI } from "../../services/api";
 import { AlertTriangle, Plus, Shirt } from "lucide-react";
 import useBodyScrollLock from "../../hooks/useBodyScrollLock";
 
@@ -10,6 +10,15 @@ const createEmptyStockRow = () => ({
   size: "S",
   qty: "",
 });
+
+const buildAssetUrl = (path) => {
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  const base = (api.defaults.baseURL || "").replace(/\/api\/?$/, "");
+  if (!base) return path;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${normalizedPath}`;
+};
 
 export default function ClothingInventory() {
   const [inventory, setInventory] = useState([]);
@@ -41,8 +50,21 @@ export default function ClothingInventory() {
           setInventory(data || []);
         }
       } catch (err) {
-        if (!cancelled) {
-          setError(err.response?.data?.message || "Failed to load clothing");
+        // Fallback to public clothing list if admin endpoint is blocked
+        try {
+          const { data } = await clothingAPI.getClothing();
+          if (!cancelled) {
+            setInventory(data || []);
+            setError("");
+          }
+        } catch (fallbackErr) {
+          if (!cancelled) {
+            const message =
+              err.response?.data?.message ||
+              fallbackErr.response?.data?.message ||
+              "Failed to load clothing";
+            setError(message);
+          }
         }
       } finally {
         if (!cancelled) {
@@ -99,7 +121,7 @@ export default function ClothingInventory() {
       const payload = {
         clothingLabel: newItem.clothingLabel.trim(),
         description: newItem.description.trim() || null,
-        picture: newItem.picture.trim() || null,
+        picture: newItem.picture?.trim() || null,
         stock: newItem.stockRows
           .map((row) => ({
             size: row.size.trim().toUpperCase(),
@@ -219,7 +241,7 @@ export default function ClothingInventory() {
                         </div>
                         {item.picture && (
                           <img
-                            src={item.picture}
+                            src={buildAssetUrl(item.picture)}
                             alt={item.clothingLabel}
                             className="w-20 h-20 object-cover rounded-2xl border border-white shadow-sm"
                           />

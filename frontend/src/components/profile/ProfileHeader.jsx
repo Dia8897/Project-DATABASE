@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from "react";
-import { Mail, Phone, MapPin, Star } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Mail, Phone, MapPin, Star, Camera } from "lucide-react";
 
-export default function ProfileHeader({ profile }) {
+export default function ProfileHeader({ profile, onFileSelect }) {
   const [imageError, setImageError] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     // Reset error state when the pic changes so a new URL can attempt to load.
@@ -11,13 +13,31 @@ export default function ProfileHeader({ profile }) {
 
   const initials = `${profile.fName?.[0] || ""}${profile.lName?.[0] || ""}`;
   const avatarSrc = imageError ? null : profile.profileImage || profile.profilePic || null;
+  const canUpload = typeof onFileSelect === "function";
+
+  const handleAvatarClick = () => {
+    if (!canUpload) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file && canUpload) {
+      onFileSelect(file);
+    }
+  };
 
   return (
     <section className="px-4">
       <div className="max-w-6xl mx-auto bg-white rounded-[3rem] p-8 md:p-12 shadow-xl border border-gray-100">
         <div className="flex flex-col md:flex-row gap-8">
           {/* Avatar */}
-          <div className="flex-shrink-0">
+          <div
+            className={`relative flex-shrink-0 ${canUpload ? "cursor-pointer" : ""}`}
+            onMouseEnter={() => canUpload && setIsHovered(true)}
+            onMouseLeave={() => canUpload && setIsHovered(false)}
+            onClick={handleAvatarClick}
+          >
             {avatarSrc ? (
               <img
                 src={avatarSrc}
@@ -29,6 +49,11 @@ export default function ProfileHeader({ profile }) {
             ) : (
               <div className="w-32 h-32 rounded-full bg-ocean flex items-center justify-center text-white text-4xl font-bold">
                 {initials}
+              </div>
+            )}
+            {canUpload && isHovered && (
+              <div className="absolute inset-0 w-32 h-32 rounded-full bg-black/50 flex items-center justify-center text-white">
+                <Camera size={22} />
               </div>
             )}
           </div>
@@ -103,6 +128,15 @@ export default function ProfileHeader({ profile }) {
           </div>
         </div>
       </div>
+      {canUpload && (
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept="image/*"
+          style={{ display: "none" }}
+        />
+      )}
     </section>
   );
 }

@@ -6,7 +6,6 @@ import {
   Phone,
   Star,
   Eye,
-  Languages,
   Shirt,
   CheckCircle,
   Clock,
@@ -108,14 +107,6 @@ export default function AcceptedHosts({
                     <div className="flex items-center gap-2 text-gray-600">
                       <Phone size={14} className="text-ocean flex-shrink-0" />
                       <span>{host.phone}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Languages size={14} className="text-ocean flex-shrink-0" />
-                      <span>
-                        {host.languages && host.languages.length
-                          ? host.languages.join(", ")
-                          : "Languages pending"}
-                      </span>
                     </div>
                     <div className="flex items-center gap-2 text-gray-600">
                       <Shirt size={14} className="text-ocean flex-shrink-0" />
