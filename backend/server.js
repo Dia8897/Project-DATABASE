@@ -25,7 +25,8 @@ const __dirname = path.dirname(__filename);
 // Middleware
 app.use(cors());
 app.use(express.json());
-// Serve dress images (place files under backend/pics/)
+
+// For dress images 
 app.use("/pics", express.static(path.join(__dirname, "pics")));
 
 // Test route
@@ -57,10 +58,6 @@ app.use("/api/hosts", hostRoutes);
 // Start server
 const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 5050;
 const MAX_PORT_SEARCH = 20;
-
-
-
-
 const startServer = (port, attemptsLeft) => {
   const server = app.listen(port, () => {
     console.log(`Server running on http://localhost:${port}`);
