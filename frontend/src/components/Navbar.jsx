@@ -90,7 +90,6 @@ export default function Navbar() {
     const navLinks = [
         homeLink,
         { label: "About", path: "#about" },
-        eventsLink,
         { label: "Contact", path: "#contact" },
     ];
 

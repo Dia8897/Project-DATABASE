@@ -8,6 +8,7 @@ const formatTime = (date) => {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
+// Note: fction to combine date and time
 const combineDateAndTime = (date, timeStr) => {
   if (!date || !timeStr) return null;
   const [h, m] = timeStr.split(":").map((v) => parseInt(v, 10));

@@ -8,14 +8,14 @@ export default function HeroSection({ onGetStarted }) {
             <div className="max-w-4xl mx-auto text-center">
                 {/* Dynamic, Creative Title */}
                 <h1 className="text-5xl md:text-6xl font-extrabold text-gray-900 mb-4">
-                    Elevate Your Events with Elite Hosts
+                    Elevate Your Events with GATHERLY!
                 </h1>
 
                 {/* Introduction Paragraph */}
                 <p className="text-gray-700 text-lg md:text-xl max-w-2xl mx-auto mb-8">
                     Welcome to our hosting agency platform, where professional hosts and event
                     organizers connect seamlessly. Whether you're looking to work as a host,
-                    manage events as an admin, or hire talent as a client — we've got you covered.
+                    manage events as an admin, or hire talent as a client, we've got you covered.
                 </p>
 
                 {/* GET STARTED BUTTON */}

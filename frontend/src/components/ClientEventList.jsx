@@ -1,6 +1,7 @@
 import React from "react";
 
 export default function ClientEventList({ events }) {
+  //Note: this fction returns Tailwind CSS classes to choose the color of the event button according to status
   const getStatusStyles = (status) => {
     const normalized = String(status || "").toLowerCase();
     if (normalized === "accepted" || normalized === "confirmed") {
@@ -27,6 +28,7 @@ export default function ClientEventList({ events }) {
     }
   };
 
+  //Note: function that returns a small icon (SVG) depending on the event’s status.
   const getStatusIcon = (status) => {
     const normalized = String(status || "").toLowerCase();
     if (normalized === "accepted" || normalized === "confirmed") {
@@ -76,7 +78,6 @@ export default function ClientEventList({ events }) {
 
   return (
     <div className="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
-      {/* Header */}
       <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">
@@ -86,11 +87,14 @@ export default function ClientEventList({ events }) {
             Event Requests
           </h2>
         </div>
+        {/*Note: if there is one event, write Request, if more than one write Requests*/}
         <span className="px-4 py-2 rounded-full bg-sky text-ocean text-sm font-semibold">
           {events.length} {events.length === 1 ? "Request" : "Requests"}
         </span>
       </div>
 
+
+      {/*Note: If there are NO events → show “No requests yet”, Else → show a list (cards) of events} */}
       <div className="p-6">
         {events.length === 0 ? (
           <div className="bg-cream rounded-2xl border border-dashed border-gray-200 p-12 text-center">
@@ -102,8 +106,10 @@ export default function ClientEventList({ events }) {
             <p className="text-gray-500 font-medium">No requests yet</p>
             <p className="text-sm text-gray-400 mt-1">Create your first event request above</p>
           </div>
-        ) : (
+        
+      ) : (
           <div className="grid gap-4 md:grid-cols-2">
+            {/*Note: For each event inside events, we do the following JSX. */}
             {events.map((ev) => (
               <article
                 key={ev.id}
@@ -132,7 +138,7 @@ export default function ClientEventList({ events }) {
                       </svg>
                     </div>
                     <span><span className="font-medium text-gray-900">Date:</span> {ev.date}</span>
-                  </div>
+                   </div> {/* Note: I used span here to make Date in bold and the actual date in normal font */}
                   <div className="flex items-center gap-3 text-sm text-gray-600">
                     <div className="w-8 h-8 rounded-lg bg-cream flex items-center justify-center">
                       <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

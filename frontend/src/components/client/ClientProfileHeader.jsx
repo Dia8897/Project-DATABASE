@@ -2,15 +2,15 @@ import React, { useEffect, useState, useRef } from "react";
 import { Mail, Phone, MapPin, Camera } from "lucide-react";
 
 export default function ClientProfileHeader({ client, stats, onFileSelect }) {
-  const [imageError, setImageError] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-  const fileInputRef = useRef(null);
+  const [imageError, setImageError] = useState(false); //Note: If the profile image fails to load imageError becomes true. Then React shows initials instead of image
+  const [isHovered, setIsHovered] = useState(false); //Note: it is true only when mouse is over the profile icon. 
+  const fileInputRef = useRef(null); //Note: fileInputRef will point to <input type="file">
 
   useEffect(() => {
-    // Reset error when profilePic changes so a new URL can load.
     setImageError(false);
   }, [client?.profilePic]);
 
+// User clicks the avatar picture. This function runs --> The file picker opens
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
   };
@@ -22,14 +22,17 @@ export default function ClientProfileHeader({ client, stats, onFileSelect }) {
     }
   };
 
-  const initials = `${client?.fName?.[0] || ""}${client?.lName?.[0] || ""}` || "C";
+  const initials = `${client?.fName?.[0] || ""}${client?.lName?.[0] || ""}` || "C"; //If both initials are empty, use "C" (for Client).
   const displayName = [client?.fName, client?.lName].filter(Boolean).join(" ") || "Client";
+// subtitle: shows "address • age" if both exist,
+// otherwise shows address, or email, or a default welcome message
   const subtitle =
     client?.address && client?.age
       ? `${client.address} • ${client.age} yrs`
       : client?.address || client?.email || "Welcome back to your dashboard";
   const avatarSrc = !imageError ? client?.profilePic : null;
 
+//Note: This is an array of objects that defines the statistics to display in the client profile (numbers + labels + colors).
   const statItems = [
     { label: "Total Requests", value: stats?.total ?? 0, color: "text-gray-900" },
     { label: "Accepted", value: stats?.accepted ?? 0, color: "text-green-700" },
@@ -42,6 +45,7 @@ export default function ClientProfileHeader({ client, stats, onFileSelect }) {
       <div className="max-w-6xl mx-auto bg-white rounded-[3rem] p-8 md:p-12 shadow-xl border border-gray-100">
         <div className="space-y-8">
           <div className="flex flex-col lg:flex-row lg:items-center gap-6">
+            {/* When user clicks the avatar. Call the function handleAvatarClick. That function opens the hidden file input */}
             <div
               className="relative cursor-pointer"
               onMouseEnter={() => setIsHovered(true)}
@@ -122,6 +126,8 @@ export default function ClientProfileHeader({ client, stats, onFileSelect }) {
           </div>
         </div>
       </div>
+      
+      {/* This is a file picker (for uploading images) */}
       <input
         type="file"
         ref={fileInputRef}
