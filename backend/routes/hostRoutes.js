@@ -4,11 +4,13 @@ import { verifyToken } from "../middleware/auth.js";
 
 const router = Router();
 
+//make sure that self or admin
 const ensureSelfOrAdmin = (req, targetUserId) => {
   if (req.user.role === "admin") return true;
   return req.user.role === "user" && req.user.id === targetUserId;
 };
 
+//accept code of conduct
 router.post("/code-of-conduct/accept", verifyToken, async (req, res) => {
   const userId = Number(req.body.userId);
   if (!Number.isInteger(userId) || userId <= 0) {

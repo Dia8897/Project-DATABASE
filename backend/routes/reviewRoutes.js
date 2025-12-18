@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import db from "../config/db.js";
 import { verifyToken, isAdmin, requireActiveHost } from "../middleware/auth.js";
 
+//env variables
 dotenv.config();
 
 const router = Router();
@@ -11,11 +12,13 @@ const MIN_STAR_RATING = 1;
 const MAX_STAR_RATING = 5;
 const VISIBILITY_VALUES = new Set(["public", "private", "hidden"]);
 
+//parse + validate +ve int
 const parsePositiveInt = (value) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
+//parse + validate star rating
 const parseStarRating = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) return null;
@@ -23,6 +26,7 @@ const parseStarRating = (value) => {
   return parsed;
 };
 
+//auth middleware
 const optionalAuth = (req, _res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) {
@@ -37,6 +41,7 @@ const optionalAuth = (req, _res, next) => {
   next();
 };
 
+//map review row to object
 const mapReviewRow = (row) => ({
   reviewerId: row.reviewerId,
   eventId: row.eventId,
@@ -52,6 +57,7 @@ const mapReviewRow = (row) => ({
     : undefined,
 });
 
+//tl submits review for event
 router.post(
   "/host/events/:eventId/review",
   verifyToken,
@@ -130,6 +136,7 @@ router.post(
   }
 );
 
+//get reviews for an event
 router.get("/events/:eventId/reviews", optionalAuth, async (req, res) => {
   const parsedEventId = parsePositiveInt(req.params.eventId);
   if (!parsedEventId) {
@@ -183,6 +190,7 @@ router.get("/events/:eventId/reviews", optionalAuth, async (req, res) => {
   }
 });
 
+//admin updates review visibility
 router.patch(
   "/admin/events/:eventId/reviews/:reviewerId/visibility",
   verifyToken,
