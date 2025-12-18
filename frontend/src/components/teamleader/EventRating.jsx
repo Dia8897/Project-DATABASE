@@ -21,7 +21,6 @@ export default function EventRating({ event }) {
   const categories = [
     { id: "organization", label: "Event Organization", rating: 0 },
     { id: "communication", label: "Client Communication", rating: 0 },
-    { id: "venue", label: "Venue & Facilities", rating: 0 },
     { id: "support", label: "Agency Support", rating: 0 },
   ];
 
@@ -166,7 +165,7 @@ export default function EventRating({ event }) {
             rows={4}
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
-            placeholder="Share any additional thoughts about the event, client, venue, or suggestions for improvement..."
+            placeholder="Share any additional thoughts about the event, client, or suggestions for improvement..."
             className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean resize-none"
           />
         </div>

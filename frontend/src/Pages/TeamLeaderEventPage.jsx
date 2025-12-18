@@ -61,17 +61,17 @@ const buildEventPlan = (event, hostList) => {
   const formatTimeOnly = (dateObj) =>
     dateObj ? dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "TBA";
 
-  const venueLabel = event.venue || event.location || "Venue TBA";
+  const locationLabel = event.location || "Location TBA";
   const schedule = [
     {
       time: formatTimeOnly(addMinutes(event.startsAt, -120)),
       activity: "Team arrival & uniform check",
-      location: venueLabel,
+      location: locationLabel,
     },
     {
       time: formatTimeOnly(addMinutes(event.startsAt, -90)),
       activity: "Briefing with client / admin",
-      location: venueLabel,
+      location: locationLabel,
     },
     {
       time: formatTimeOnly(start),
@@ -86,12 +86,12 @@ const buildEventPlan = (event, hostList) => {
     {
       time: formatTimeOnly(end),
       activity: "Closing & farewell",
-      location: venueLabel,
+      location: locationLabel,
     },
     {
       time: formatTimeOnly(addMinutes(event.endsAt, 30)),
       activity: "Debrief & wrap-up",
-      location: venueLabel,
+      location: locationLabel,
     },
   ].filter((item) => item.time !== "TBA");
 

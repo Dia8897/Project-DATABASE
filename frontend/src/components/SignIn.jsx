@@ -31,9 +31,9 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
   if (!show) return null;
 
   const roles = [
-    { id: "host", label: "Host", icon: "👤" },
-    { id: "client", label: "Client", icon: "🎉" },
-    { id: "admin", label: "Admin", icon: "⚙️" },
+    { id: "host", label: "Host"},
+    { id: "client", label: "Client"},
+    { id: "admin", label: "Admin"},
   ];
 
   const handleSubmit = async (e) => {
@@ -176,7 +176,7 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
                                    "var(--color-mint)"
                 } : {}}
               >
-                <span>{role.icon}</span>
+               
                 {role.label}
               </button>
             ))}

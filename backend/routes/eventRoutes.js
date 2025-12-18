@@ -157,7 +157,6 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
         location: event.location,
         startsAt: normalizeDate(event.startsAt),
         endsAt: normalizeDate(event.endsAt),
-        venue: event.venue,
         nbOfHosts: event.nbOfHosts,
         acceptedHostsCount: event.acceptedHostsCount || 0,
         dressCode: event.dressCode ?? null,
@@ -315,10 +314,10 @@ router.post("/", verifyToken, isClient, async (req, res) => {
   try {
     const [result] = await db.query(
       `INSERT INTO EVENTS (
-         title, type, description, location, startsAt, endsAt, venue,
+         title, type, description, location, startsAt, endsAt,
          nbOfHosts, floorPlan, attendeesList, rate,
          teamLeaderId, clothesId, clientId, adminId, status
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       , [
         title,
         type,
@@ -326,7 +325,6 @@ router.post("/", verifyToken, isClient, async (req, res) => {
         location,
         startsAt,
         endsAt,
-        req.body.venue ?? null,
         Number(nbOfHosts),
         req.body.floorPlan ?? null,
         req.body.attendeesList ?? null,
@@ -360,7 +358,6 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
     location,
     startsAt,
     endsAt,
-    venue,
     nbOfHosts,
     floorPlan,
     attendeesList,
@@ -417,7 +414,6 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   add("location", location?.trim());
   add("startsAt", startsAt);
   add("endsAt", endsAt);
-  add("venue", venue ?? null);
   add("nbOfHosts", nbOfHosts, Number);
   add("floorPlan", floorPlan ?? null);
   add("attendeesList", attendeesList ?? null);
