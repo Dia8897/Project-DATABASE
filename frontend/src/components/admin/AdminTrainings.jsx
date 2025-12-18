@@ -3,6 +3,18 @@ import { adminAPI } from "../../services/api";
 import { Calendar, Clock, MapPin, Users, UserPlus, BookOpen, X } from "lucide-react";
 import useBodyScrollLock from "../../hooks/useBodyScrollLock";
 
+const locationOptions = [
+  "Office in Beirut Central District",
+  "Office in Hamra",
+  "Office in Verdun",
+  "Office in Achrafieh",
+  "Office in Dbayeh",
+  "Office in Jounieh",
+  "Office in Tripoli",
+  "Office in Sidon",
+  "Office in Tyre"
+];
+
 const defaultForm = {
   title: "",
   type: "",
@@ -292,12 +304,20 @@ export default function AdminTrainings() {
               </label>
               <label className="space-y-2 text-sm font-semibold text-gray-700">
                 Location
-                <input
-                  type="text"
+                <select
                   value={formData.location}
                   onChange={(e) => handleFormChange("location", e.target.value)}
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 focus:ring-2 focus:ring-ocean/50"
-                />
+                >
+                  <option value="" disabled hidden>
+                    Select a location
+                  </option>
+                  {locationOptions.map((location) => (
+                    <option key={location} value={location}>
+                      {location}
+                    </option>
+                  ))}
+                </select>
               </label>
               <div className="grid md:grid-cols-3 gap-4">
                 <label className="space-y-2 text-sm font-semibold text-gray-700">
