@@ -93,11 +93,23 @@ function validateDateAndTime(date, startTime, endTime) {
 
 /* --------------------- ROUTES --------------------- */
 
-// GET all trainings
-router.get("/", verifyToken, isUserOrAdmin, async (req, res) => {
+// GET all trainings (includes enrollment counts)
+router.get("/", verifyToken, isUserOrAdmin, async (_req, res) => {
   try {
-    const [rows] = await db.query("SELECT * FROM TRAINING");
-    res.json(rows);
+    const [rows] = await db.query(
+      `SELECT t.*,
+              COUNT(tr.userId) AS enrolledCount
+         FROM TRAINING t
+    LEFT JOIN TRAINEES tr ON tr.trainingId = t.trainingId
+     GROUP BY t.trainingId
+     ORDER BY t.date DESC, t.startTime DESC`
+    );
+    res.json(
+      rows.map((row) => ({
+        ...row,
+        enrolledCount: Number(row.enrolledCount || 0),
+      }))
+    );
   } catch (err) {
     console.error("Failed to fetch training", err);
     res.status(500).json({ message: "Failed to fetch trainings" });
@@ -260,6 +272,35 @@ router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
   } catch (err) {
     console.error("Failed to delete training", err);
     res.status(500).json({ message: "Failed to delete training" });
+  }
+});
+
+// List attendees for a training (admin only)
+router.get("/:id/attendees", verifyToken, isAdmin, async (req, res) => {
+  const trainingId = parseInt(req.params.id, 10);
+  if (Number.isNaN(trainingId)) {
+    return res.status(400).json({ message: "Invalid training id" });
+  }
+
+  try {
+    const [rows] = await db.query(
+      `SELECT tr.userId,
+              u.fName,
+              u.lName,
+              u.email,
+              u.phoneNb,
+              u.clothingSize,
+              tr.trainingId
+         FROM TRAINEES tr
+         JOIN USERS u ON u.userId = tr.userId
+        WHERE tr.trainingId = ?
+     ORDER BY u.fName, u.lName`,
+      [trainingId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("Failed to fetch training attendees", err);
+    res.status(500).json({ message: "Failed to fetch attendees" });
   }
 });
 

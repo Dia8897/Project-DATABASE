@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import api from "../../services/api";
 
 const defaultStats = [
-  { label: "Pending Client Event Requests", key: "totalEventRequests", value: 0, color: "text-ocean" },
+  { label: "Pending Client Event Requests", key: "pendingEventRequests", value: 0, color: "text-ocean" },
   { label: "Pending Host Applications", key: "pendingHostApplications", value: 0, color: "text-rose" },
 ];
 
@@ -23,13 +23,13 @@ export default function AdminStats() {
 
         if (cancelled) return;
 
-        const { totalEventRequests, pendingHostApplications } = response.data;
+        const { pendingEventRequests, pendingHostApplications } = response.data;
 
         setStats((prev) =>
           prev.map((stat) => {
             switch (stat.key) {
-              case "totalEventRequests":
-                return { ...stat, value: totalEventRequests || 0 };
+              case "pendingEventRequests":
+                return { ...stat, value: pendingEventRequests || 0 };
               case "pendingHostApplications":
                 return { ...stat, value: pendingHostApplications || 0 };
               default:
