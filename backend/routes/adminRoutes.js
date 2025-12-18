@@ -31,13 +31,31 @@ router.get("/event-requests", verifyToken, isAdmin, async (req, res) => {
               c.lName AS clientLastName,
               c.email AS clientEmail,
               c.phoneNb AS clientPhone,
+              c.address AS clientAddress,
               cl.clothingLabel,
               cl.picture       AS clothingPicture,
               cl.description   AS clothingDescription,
-              cs.stockInfo     AS clothingStockInfo
+              cs.stockInfo     AS clothingStockInfo,
+              tl.userId        AS teamLeaderId,
+              tl.fName         AS teamLeaderFirstName,
+              tl.lName         AS teamLeaderLastName,
+              tl.email         AS teamLeaderEmail,
+              tl.phoneNb       AS teamLeaderPhone,
+              a.adminId,
+              a.fName          AS adminFirstName,
+              a.lName          AS adminLastName,
+              a.email          AS adminEmail,
+              (
+                SELECT COUNT(*)
+                  FROM EVENT_APP ea
+                 WHERE ea.eventId = e.eventId
+                   AND ea.status = 'accepted'
+              ) AS acceptedHostsCount
          FROM EVENTS e
     LEFT JOIN CLIENTS c ON c.clientId = e.clientId
     LEFT JOIN CLOTHING cl ON cl.clothesId = e.clothesId
+    LEFT JOIN USERS tl ON tl.userId = e.teamLeaderId
+    LEFT JOIN ADMINS a ON a.adminId = e.adminId
     LEFT JOIN (
               SELECT clothingId,
                      GROUP_CONCAT(CONCAT(size, ':', stockQty) SEPARATOR ', ') AS stockInfo
@@ -66,11 +84,11 @@ router.get("/event-requests", verifyToken, isAdmin, async (req, res) => {
 // Admin dashboard stats (keep before /:id to avoid route shadowing)
 router.get("/stats", verifyToken, isAdmin, async (req, res) => {
   try {
-    const [totalEventRequests] = await db.query("SELECT COUNT(*) as count FROM EVENTS");
+    const [pendingEventRequests] = await db.query("SELECT COUNT(*) as count FROM EVENTS WHERE status = 'pending'");
     const [pendingHostApplications] = await db.query("SELECT COUNT(*) as count FROM EVENT_APP WHERE status = 'pending'");
 
     res.json({
-      totalEventRequests: totalEventRequests[0].count,
+      pendingEventRequests: pendingEventRequests[0].count,
       pendingHostApplications: pendingHostApplications[0].count,
     });
   } catch (err) {
@@ -98,39 +116,28 @@ router.get("/clients", verifyToken, isAdmin, async (_req, res) => {
   try {
     const [clients] = await db.query(
       `SELECT ${CLIENT_SELECT_WITH_ALIAS},
-              NULL AS createdAt,
-              NULL AS updatedAt
+              stats.eventCount,
+              stats.lastEventAt,
+              stats.firstEventAt
          FROM CLIENTS c
+    LEFT JOIN (
+              SELECT clientId,
+                     COUNT(eventId) AS eventCount,
+                     MAX(COALESCE(endsAt, startsAt)) AS lastEventAt,
+                     MIN(COALESCE(startsAt, createdAt)) AS firstEventAt
+                FROM EVENTS
+               WHERE clientId IS NOT NULL
+            GROUP BY clientId
+             ) stats ON stats.clientId = c.clientId
      ORDER BY c.clientId DESC`
     );
 
-    const [eventStats] = await db.query(
-      `SELECT clientId,
-              COUNT(eventId) AS eventCount,
-              MAX(COALESCE(endsAt, startsAt)) AS lastEventAt
-         FROM EVENTS
-        WHERE clientId IS NOT NULL
-     GROUP BY clientId`
-    );
-
-    const statsMap = new Map(
-      eventStats.map((row) => [
-        row.clientId,
-        {
-          eventCount: Number(row.eventCount || 0),
-          lastEventAt: row.lastEventAt || null,
-        },
-      ])
-    );
-
-    const normalized = clients.map((client) => {
-      const stats = statsMap.get(client.clientId) || { eventCount: 0, lastEventAt: null };
-      return {
-        ...client,
-        eventCount: stats.eventCount,
-        lastEventAt: stats.lastEventAt,
-      };
-    });
+    const normalized = clients.map((client) => ({
+      ...client,
+      eventCount: Number(client.eventCount || 0),
+      lastEventAt: client.lastEventAt || null,
+      firstEventAt: client.firstEventAt || null,
+    }));
 
     res.json(normalized);
   } catch (err) {
@@ -298,9 +305,19 @@ router.get("/clients/:clientId", verifyToken, isAdmin, async (req, res) => {
       [clientId]
     );
 
+    const firstEventAt =
+      events.length > 0
+        ? events.reduce((earliest, event) => {
+            const candidate = event.startsAt || event.createdAt || earliest;
+            if (!earliest) return candidate;
+            return new Date(candidate) < new Date(earliest) ? candidate : earliest;
+          }, null)
+        : null;
+
     res.json({
       ...clientRows[0],
       events,
+      firstEventAt,
     });
   } catch (err) {
     console.error("Failed to fetch client details", err);

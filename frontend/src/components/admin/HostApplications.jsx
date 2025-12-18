@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { User, CheckCircle, XCircle, Mail, Phone, Award, Languages, Eye, X } from "lucide-react";
+import { User, CheckCircle, XCircle, Mail, Phone, Award, Languages, Eye, X, MapPin } from "lucide-react";
 import api, { adminAPI } from "../../services/api";
 import useBodyScrollLock from "../../hooks/useBodyScrollLock";
 
@@ -272,8 +272,8 @@ export default function HostApplications() {
   const openProfile = async (app) => {
     setProfileLoading(true);
     try {
-      const { data } = await api.get(`/users/${app.userId}`);
-      setProfileModal({ ...app, profile: data });
+      const { data } = await api.get(`/users/${app.userId}/overview`);
+      setProfileModal({ ...app, overview: data });
     } catch (err) {
       alert(err.response?.data?.message || "Failed to load profile");
     } finally {
@@ -312,6 +312,13 @@ export default function HostApplications() {
         return "text-gray-600 bg-gray-50 border-gray-200";
     }
   };
+
+  const profileOverview = profileModal?.overview || null;
+  const profileSummary = profileOverview?.profile || null;
+  const profileAppliedEvents = profileOverview?.appliedEvents || [];
+  const profileAttendedEvents = profileOverview?.attendedEvents || [];
+  const profileTrainings = profileOverview?.trainings || [];
+  const profileWorkedClients = profileOverview?.workedClients || [];
 
   return (
     <div className="space-y-8">
@@ -752,22 +759,45 @@ export default function HostApplications() {
                   <Mail size={18} className="text-ocean" />
                   <div>
                     <p className="text-xs uppercase text-gray-400 tracking-widest">Email</p>
-                    <p className="font-semibold">{profileModal.profile?.email || profileModal.email}</p>
+                    <p className="font-semibold">
+                      {profileSummary?.email || profileModal.email}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 text-gray-700">
                   <Phone size={18} className="text-ocean" />
                   <div>
                     <p className="text-xs uppercase text-gray-400 tracking-widest">Phone</p>
-                    <p className="font-semibold">{profileModal.profile?.phoneNb || profileModal.phone}</p>
+                    <p className="font-semibold">
+                      {profileSummary?.phoneNb || profileModal.phone}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 text-gray-700">
+                  <MapPin size={18} className="text-ocean" />
+                  <div>
+                    <p className="text-xs uppercase text-gray-400 tracking-widest">Address</p>
+                    <p className="font-semibold">
+                      {profileSummary?.address || profileModal.address || "Not provided"}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 text-gray-700">
                   <Award size={18} className="text-ocean" />
                   <div>
                     <p className="text-xs uppercase text-gray-400 tracking-widest">Eligibility</p>
-                    <p className="font-semibold capitalize">{profileModal.profile?.eligibility || "pending"}</p>
+                    <p className="font-semibold capitalize">
+                      {profileSummary?.eligibility || "pending"}
+                    </p>
                   </div>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <span className="px-3 py-1 rounded-full bg-cream text-gray-700 font-semibold border border-gray-100">
+                    Active: {profileSummary?.isActive ? "Yes" : "No"}
+                  </span>
+                  <span className="px-3 py-1 rounded-full bg-cream text-gray-700 font-semibold border border-gray-100">
+                    CoC: {profileSummary?.codeOfConductAccepted ? "Accepted" : "Pending"}
+                  </span>
                 </div>
               </div>
 
@@ -777,21 +807,102 @@ export default function HostApplications() {
                   <span>Notes & Experience</span>
                 </div>
                 <p className="text-sm text-gray-600 leading-relaxed">
-                  {profileModal.profile?.description || profileModal.description}
+                  {profileSummary?.description || profileModal.description || "No description provided."}
                 </p>
                 <div className="flex flex-wrap gap-2 text-sm text-gray-600">
                   <span className="px-3 py-1 rounded-full bg-cream text-gray-800 font-semibold">
-                    Clothing Size: {profileModal.profile?.clothingSize || profileModal.clothingSize}
+                    Clothing Size: {profileSummary?.clothingSize || profileModal.clothingSize}
                   </span>
                   <span className="px-3 py-1 rounded-full bg-cream text-gray-800 font-semibold inline-flex items-center gap-2">
                     <Languages size={16} className="text-ocean" />
                     Languages coming soon
                   </span>
                 </div>
-                {profileModal.profile?.address && (
-                  <div className="text-sm text-gray-600">
-                    Address: {profileModal.profile.address}
-                  </div>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-gray-100 p-4 space-y-2">
+                <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">Recent Applications</p>
+                {profileAppliedEvents.length === 0 ? (
+                  <p className="text-sm text-gray-500">No applications submitted yet.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-48 overflow-y-auto">
+                    {profileAppliedEvents.slice(0, 5).map((event) => (
+                      <li key={event.eventAppId} className="border border-gray-100 rounded-2xl px-3 py-2">
+                        <p className="text-sm font-semibold text-gray-900">{event.title}</p>
+                        <p className="text-xs text-gray-500">
+                          {event.requestedRole} • {formatDate(event.startsAt)}
+                        </p>
+                        <span className="text-xs font-semibold uppercase text-gray-600">
+                          {event.status}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 p-4 space-y-2">
+                <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">Training history</p>
+                {profileTrainings.length === 0 ? (
+                  <p className="text-sm text-gray-500">No trainings completed.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-48 overflow-y-auto">
+                    {profileTrainings.slice(0, 5).map((training) => (
+                      <li key={training.trainingId} className="border border-gray-100 rounded-2xl px-3 py-2">
+                        <p className="text-sm font-semibold text-gray-900">{training.title}</p>
+                        <p className="text-xs text-gray-500">
+                          {training.type} • {formatDate(training.date)}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-gray-100 p-4 space-y-2">
+                <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">Attended events</p>
+                {profileAttendedEvents.length === 0 ? (
+                  <p className="text-sm text-gray-500">No completed events yet.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-48 overflow-y-auto">
+                    {profileAttendedEvents.slice(0, 5).map((event) => (
+                      <li key={event.eventId} className="border border-gray-100 rounded-2xl px-3 py-2">
+                        <p className="text-sm font-semibold text-gray-900">{event.title}</p>
+                        <p className="text-xs text-gray-500">
+                          {event.location || "TBA"} • {formatDate(event.startsAt)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Role: {event.assignedRole || "Host"}{" "}
+                          {event.starRating ? `• ⭐ ${event.starRating}` : ""}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 p-4 space-y-2">
+                <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">Worked clients</p>
+                {profileWorkedClients.length === 0 ? (
+                  <p className="text-sm text-gray-500">No client history yet.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-48 overflow-y-auto">
+                    {profileWorkedClients.slice(0, 5).map((client) => (
+                      <li key={client.clientId} className="border border-gray-100 rounded-2xl px-3 py-2">
+                        <p className="text-sm font-semibold text-gray-900">{client.name || `Client #${client.clientId}`}</p>
+                        <p className="text-xs text-gray-500">
+                          Events: {client.eventsWorked} • Last: {client.lastEvent ? formatDate(client.lastEvent) : "N/A"}
+                        </p>
+                        {client.rating && (
+                          <p className="text-xs text-gray-500">Avg rating: ⭐ {client.rating}</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
             </div>
