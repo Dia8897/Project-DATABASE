@@ -38,6 +38,10 @@ export const adminAPI = {
   addClothingStock: (clothesId, payload) => api.patch(`/admins/clothing/${clothesId}/stock`, payload),
   saveTransportation: (eventId, payload) => api.post(`/transportation/${eventId}`, payload),
   deleteTransportation: (eventId) => api.delete(`/transportation/${eventId}`),
+  listTrainings: () => api.get('/trainings'),
+  createTraining: (payload) => api.post('/trainings', payload),
+  deleteTraining: (trainingId) => api.delete(`/trainings/${trainingId}`),
+  listTrainingAttendees: (trainingId) => api.get(`/trainings/${trainingId}/attendees`),
 };
 
 export const userAPI = {

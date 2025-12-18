@@ -14,7 +14,7 @@ import {
   AlertTriangle,
   Bus,
 } from "lucide-react";
-import api, { adminAPI } from "../../services/api";
+import api, { adminAPI, reviewAPI } from "../../services/api";
 import useBodyScrollLock from "../../hooks/useBodyScrollLock";
 
 const CLIENT_FIELDS = ["clientFirstName", "clientLastName", "clientEmail", "clientPhone"];
@@ -72,6 +72,12 @@ const normalizeRequest = (request) => {
     .join(" ")
     .trim();
 
+  const teamLeaderName = [request.teamLeaderFirstName, request.teamLeaderLastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const adminName = [request.adminFirstName, request.adminLastName].filter(Boolean).join(" ").trim();
+
   return {
     id: request.eventId,
     title: request.title || "Untitled Event",
@@ -80,13 +86,17 @@ const normalizeRequest = (request) => {
     clientName: clientName || "Client details pending",
     clientEmail: request.clientEmail || "Not provided",
     clientPhone: request.clientPhone || "Not provided",
+    clientAddress: request.clientAddress || "",
     date: formatDate(request.startsAt),
     location: request.location || "Location TBA",
     nbOfHosts: request.nbOfHosts || 0,
-    dressCode: request.dressCode || "Not specified",
     description: request.description || "No description provided.",
     status: toTitleCase(request.status || "pending"),
     submittedDate: formatDate(request.createdAt),
+    hostCoverage: {
+      accepted: Number(request.acceptedHostsCount || 0),
+      required: Number(request.nbOfHosts || 0),
+    },
     outfit: request.clothingLabel
       ? {
           label: request.clothingLabel,
@@ -96,6 +106,23 @@ const normalizeRequest = (request) => {
         }
       : null,
     transportation: request.transportationSummary || null,
+    teamLeader: request.teamLeaderId
+      ? {
+          id: request.teamLeaderId,
+          name: teamLeaderName || "Team leader TBD",
+          email: request.teamLeaderEmail || "",
+          phone: request.teamLeaderPhone || "",
+        }
+      : null,
+    adminOwner: request.adminId
+      ? {
+          id: request.adminId,
+          name: adminName || "Admin",
+          email: request.adminEmail || "",
+        }
+      : null,
+    floorPlan: request.floorPlan || null,
+    attendeesList: request.attendeesList || null,
   };
 };
 
@@ -156,6 +183,10 @@ export default function EventRequests() {
   const [transportModal, setTransportModal] = useState(null);
   const [transportSaving, setTransportSaving] = useState(false);
   const [transportError, setTransportError] = useState("");
+  const [detailReviews, setDetailReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewError, setReviewError] = useState("");
+  const [reviewUpdating, setReviewUpdating] = useState(null);
   useBodyScrollLock(Boolean(detailModal || transportModal || conflictModal));
 
 
@@ -170,11 +201,16 @@ export default function EventRequests() {
         const { data } = await api.get("/admins/event-requests", { params });
         if (!cancelled) {
           const hydrated = await hydrateRequests(data);
-          const resolved = hydrated.map((req) =>
-            req?.outfit?.picture
-              ? { ...req, outfit: { ...req.outfit, picture: resolvePicture(req.outfit.picture) } }
-              : req
-          );
+          const resolved = hydrated.map((req) => {
+            const next = { ...req };
+            if (req?.outfit?.picture) {
+              next.outfit = { ...req.outfit, picture: resolvePicture(req.outfit.picture) };
+            }
+            if (req.floorPlan) {
+              next.floorPlan = resolvePicture(req.floorPlan);
+            }
+            return next;
+          });
           setRequests(resolved);
         }
       } catch (err) {
@@ -202,6 +238,24 @@ export default function EventRequests() {
   };
 
   const filteredRequests = requests; // No client-side filtering needed since API does it
+
+  const closeDetailModal = () => {
+    setDetailModal(null);
+    setEventApplications([]);
+    setDetailReviews([]);
+    setReviewError("");
+  };
+
+  const hostCoverage = detailModal?.hostCoverage;
+  const hostCoveragePct =
+    hostCoverage && hostCoverage.required > 0
+      ? Math.min(
+          100,
+          Math.round(
+            (hostCoverage.accepted / Math.max(hostCoverage.required, 1)) * 100
+          )
+        )
+      : null;
 
   const detailTransportUsage =
     detailModal?.transportation?.worstCaseSeats > 0
@@ -251,14 +305,33 @@ export default function EventRequests() {
   const openDetailModal = async (request) => {
     setDetailModal(request);
     setApplicationsLoading(true);
+    setReviewsLoading(true);
+    setReviewError("");
     try {
-      const { data } = await api.get(`/applications/event/${request.id}`);
-      setEventApplications(data);
-    } catch (err) {
-      console.error("Failed to fetch applications:", err);
-      setEventApplications([]);
+      const [appsResult, reviewsResult] = await Promise.allSettled([
+        api.get(`/applications/event/${request.id}`),
+        reviewAPI.getEventReviews(request.id),
+      ]);
+
+      if (appsResult.status === "fulfilled") {
+        setEventApplications(appsResult.value.data || []);
+      } else {
+        console.error("Failed to fetch applications:", appsResult.reason);
+        setEventApplications([]);
+      }
+
+      if (reviewsResult.status === "fulfilled") {
+        setDetailReviews(reviewsResult.value.data?.reviews || []);
+      } else {
+        console.error("Failed to fetch reviews:", reviewsResult.reason);
+        setDetailReviews([]);
+        setReviewError(
+          reviewsResult.reason?.response?.data?.message || "Failed to load reviews."
+        );
+      }
     } finally {
       setApplicationsLoading(false);
+      setReviewsLoading(false);
     }
   };
 
@@ -379,6 +452,23 @@ export default function EventRequests() {
       setTransportError(err.response?.data?.message || "Failed to save transportation.");
     } finally {
       setTransportSaving(false);
+    }
+  };
+
+  const handleReviewVisibilityChange = async (reviewerId, visibility) => {
+    if (!detailModal) return;
+    setReviewUpdating(reviewerId);
+    try {
+      await reviewAPI.updateReviewVisibility(detailModal.id, reviewerId, visibility);
+      setDetailReviews((prev) =>
+        prev.map((review) =>
+          review.reviewerId === reviewerId ? { ...review, visibility } : review
+        )
+      );
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to update review visibility");
+    } finally {
+      setReviewUpdating(null);
     }
   };
 
@@ -632,7 +722,7 @@ export default function EventRequests() {
               </div>
               <button
                 type="button"
-                onClick={() => setDetailModal(null)}
+                onClick={closeDetailModal}
                 className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition"
               >
                 <X size={24} />
@@ -673,7 +763,61 @@ export default function EventRequests() {
                       <Phone size={16} className="text-ocean" />
                       <span>{detailModal.clientPhone}</span>
                     </div>
+                    <div className="flex items-center gap-2">
+                      <MapPin size={16} className="text-ocean" />
+                      <span>{detailModal.clientAddress || "Address not provided"}</span>
+                    </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Event Description */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <Users size={16} className="text-ocean" />
+                    <span>Host coverage</span>
+                  </div>
+                  {hostCoverage ? (
+                    <>
+                      <p className="text-3xl font-bold text-gray-900">
+                        {hostCoverage.accepted}/{hostCoverage.required}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {hostCoverage.required > 0
+                          ? `${hostCoveragePct || 0}% of staffing confirmed`
+                          : "No host requirement set"}
+                      </p>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-ocean h-2 rounded-full transition-all"
+                          style={{ width: `${hostCoveragePct || 0}%` }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-500">No staffing data yet.</p>
+                  )}
+                </div>
+                <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <User size={16} className="text-ocean" />
+                    <span>Leadership</span>
+                  </div>
+                  {detailModal.teamLeader ? (
+                    <div className="text-sm text-gray-700 space-y-1">
+                      <p className="font-semibold">{detailModal.teamLeader.name}</p>
+                      <p>{detailModal.teamLeader.email || "Email unavailable"}</p>
+                      <p>{detailModal.teamLeader.phone || "Phone unavailable"}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">Team leader not assigned yet.</p>
+                  )}
+                  {detailModal.adminOwner && (
+                    <p className="text-xs text-gray-500">
+                      Assigned admin: {detailModal.adminOwner.name || "Admin"} ({detailModal.adminOwner.email || "—"})
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -750,6 +894,19 @@ export default function EventRequests() {
                 </div>
               )}
 
+              {detailModal.floorPlan && (
+                <div className="rounded-2xl border border-gray-100 p-4 space-y-3">
+                  <p className="text-sm font-semibold text-gray-700">Floor plan</p>
+                  <div className="rounded-2xl overflow-hidden bg-cream border border-gray-100">
+                    <img
+                      src={resolvePicture(detailModal.floorPlan)}
+                      alt="Event floor plan"
+                      className="w-full h-64 object-cover"
+                    />
+                  </div>
+                </div>
+              )}
+
               {detailModal.outfit && (
                 <div className="rounded-2xl border border-gray-100 p-4 flex gap-4 items-center">
                   {detailModal.outfit.picture && (
@@ -777,82 +934,149 @@ export default function EventRequests() {
                 </div>
               )}
 
-              {/* Applications Section - Only show for accepted events */}
+              {detailModal.attendeesList && (
+                <div className="rounded-2xl border border-gray-100 p-4 space-y-2">
+                  <p className="text-sm font-semibold text-gray-700">Attendees list</p>
+                  <pre className="text-sm text-gray-600 whitespace-pre-wrap bg-cream rounded-2xl p-4 border border-gray-100">
+                    {detailModal.attendeesList}
+                  </pre>
+                </div>
+              )}
+
+              {/* Applications & reviews - only after approval */}
               {detailModal.status === "Accepted" && (
-                <div className="rounded-2xl border border-gray-100 p-4 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-gray-700">Host Applications</p>
-                    {applicationsLoading && (
-                      <p className="text-xs text-gray-500">Loading applications...</p>
+                <>
+                  <div className="rounded-2xl border border-gray-100 p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-gray-700">Host Applications</p>
+                      {applicationsLoading && (
+                        <p className="text-xs text-gray-500">Loading applications...</p>
+                      )}
+                    </div>
+
+                    {eventApplications.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-8">
+                        {applicationsLoading ? "Loading..." : "No applications yet"}
+                      </p>
+                    ) : (
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {eventApplications.map((app) => {
+                          const isPending = app.status === "pending";
+                          const requestedDress = Boolean(
+                            app.requestDress === true ||
+                              app.requestDress === "true" ||
+                              Number(app.requestDress) === 1
+                          );
+                          return (
+                            <div key={app.eventAppId} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <p className="text-sm font-semibold text-gray-900">
+                                    {app.fName} {app.lName}
+                                  </p>
+                                  <p className="text-xs text-gray-600">
+                                    Applied for: {app.requestedRole?.replace('_', ' ')}
+                                  </p>
+                                  {app.notes && (
+                                    <p className="text-xs text-gray-600 italic mt-1">"{app.notes}"</p>
+                                  )}
+                                  {requestedDress ? (
+                                    <span className="mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-cream text-ocean text-xs font-semibold">
+                                      <span className="h-2 w-2 rounded-full bg-ocean"></span>
+                                      Dress requested
+                                    </span>
+                                  ) : (
+                                    <span className="mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
+                                      No dress request
+                                    </span>
+                                  )}
+                                </div>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ml-3 ${
+                                  app.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                                  app.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                  'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {app.status || 'pending'}
+                                </span>
+                              </div>
+
+                              {isPending && (
+                                <div className="flex gap-2 pt-2 border-t border-gray-100">
+                                  <button
+                                    onClick={() => handleRejectApplication(app.eventAppId)}
+                                    className="flex-1 px-4 py-2 text-sm bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition font-medium"
+                                  >
+                                    Reject
+                                  </button>
+                                  <AcceptWithRoleButton
+                                    application={app}
+                                    onAccept={handleAcceptApplication}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
 
-                  {eventApplications.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-8">
-                      {applicationsLoading ? "Loading..." : "No applications yet"}
-                    </p>
-                  ) : (
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {eventApplications.map((app) => {
-                        const isPending = app.status === "pending";
-                        const requestedDress = Boolean(
-                          app.requestDress === true ||
-                            app.requestDress === "true" ||
-                            Number(app.requestDress) === 1
-                        );
-                        return (
-                          <div key={app.eventAppId} className="border border-gray-200 rounded-lg p-4 space-y-3">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
+                  <div className="rounded-2xl border border-gray-100 p-4 space-y-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-sm font-semibold text-gray-700">Event Reviews</p>
+                      {reviewsLoading && (
+                        <p className="text-xs text-gray-500">Loading reviews...</p>
+                      )}
+                    </div>
+                    {reviewError && (
+                      <div className="rounded-2xl border border-red-100 bg-red-50 p-3 text-xs text-red-600">
+                        {reviewError}
+                      </div>
+                    )}
+                    {detailReviews.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-4">
+                        {reviewsLoading ? "Loading..." : "No reviews yet."}
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {detailReviews.map((review) => (
+                          <div key={`${review.eventId}-${review.reviewerId}`} className="rounded-2xl border border-gray-100 p-4 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
                                 <p className="text-sm font-semibold text-gray-900">
-                                  {app.fName} {app.lName}
+                                  {[review.reviewer?.fName, review.reviewer?.lName].filter(Boolean).join(" ") ||
+                                    `Reviewer #${review.reviewerId}`}
                                 </p>
-                                <p className="text-xs text-gray-600">
-                                  Applied for: {app.requestedRole?.replace('_', ' ')}
-                                </p>
-                                {app.notes && (
-                                  <p className="text-xs text-gray-600 italic mt-1">"{app.notes}"</p>
-                                )}
-                                {requestedDress ? (
-                                  <span className="mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-cream text-ocean text-xs font-semibold">
-                                    <span className="h-2 w-2 rounded-full bg-ocean"></span>
-                                    Dress requested
-                                  </span>
-                                ) : (
-                                  <span className="mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
-                                    No dress request
-                                  </span>
-                                )}
+                                <p className="text-xs text-gray-500">{formatDateTime(review.createdAt)}</p>
                               </div>
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ml-3 ${
-                                app.status === 'accepted' ? 'bg-green-100 text-green-800' :
-                                app.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                'bg-yellow-100 text-yellow-800'
-                              }`}>
-                                {app.status || 'pending'}
+                              <span className="text-sm font-semibold text-ocean">
+                                ⭐ {review.starRating}/5
                               </span>
                             </div>
-
-                            {isPending && (
-                              <div className="flex gap-2 pt-2 border-t border-gray-100">
-                                <button
-                                  onClick={() => handleRejectApplication(app.eventAppId)}
-                                  className="flex-1 px-4 py-2 text-sm bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition font-medium"
-                                >
-                                  Reject
-                                </button>
-                                <AcceptWithRoleButton
-                                  application={app}
-                                  onAccept={handleAcceptApplication}
-                                />
-                              </div>
+                            {review.content && (
+                              <p className="text-sm text-gray-700 leading-relaxed">{review.content}</p>
                             )}
+                            <div className="flex flex-col gap-2">
+                              <label className="text-xs uppercase tracking-[0.2em] text-gray-500">
+                                Visibility
+                              </label>
+                              <select
+                                value={review.visibility}
+                                onChange={(e) => handleReviewVisibilityChange(review.reviewerId, e.target.value)}
+                                disabled={reviewUpdating === review.reviewerId}
+                                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-ocean/40"
+                              >
+                                <option value="public">Public</option>
+                                <option value="private">Private</option>
+                                <option value="hidden">Hidden</option>
+                              </select>
+                            </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
 
               {/* Status message for non-accepted events */}

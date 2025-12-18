@@ -115,7 +115,9 @@ export default function ClientDirectory() {
                     <h4 className="text-xl font-semibold text-gray-900">
                       {[client.fName, client.lName].filter(Boolean).join(" ") || `Client #${client.clientId}`}
                     </h4>
-                    <p className="text-sm text-gray-500">Member since {formatDate(client.createdAt)}</p>
+                    <p className="text-sm text-gray-500">
+                      First event {client.firstEventAt ? formatDate(client.firstEventAt) : "not scheduled"}
+                    </p>
                   </div>
                   <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-700">
                     {client.eventCount || 0} events
@@ -176,7 +178,9 @@ export default function ClientDirectory() {
                   <h3 className="text-2xl font-bold text-gray-900">
                     {[selectedClient.fName, selectedClient.lName].filter(Boolean).join(" ") || `Client #${selectedClient.clientId}`}
                   </h3>
-                  <p className="text-sm text-gray-500">Joined {formatDate(selectedClient.createdAt)}</p>
+                  <p className="text-sm text-gray-500">
+                    First event {selectedClient.firstEventAt ? formatDate(selectedClient.firstEventAt) : "pending"}
+                  </p>
                 </div>
               </div>
               {detailError && (

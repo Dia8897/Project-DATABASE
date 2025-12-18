@@ -6,6 +6,7 @@ import EventRequests from "../components/admin/EventRequests";
 import HostApplications from "../components/admin/HostApplications";
 import ClientDirectory from "../components/admin/ClientDirectory";
 import ClothingInventory from "../components/admin/ClothingInventory";
+import AdminTrainings from "../components/admin/AdminTrainings";
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("events");
@@ -77,6 +78,16 @@ export default function AdminPage() {
             >
               Clothing
             </button>
+            <button
+              onClick={() => handleTabChange("trainings")}
+              className={`flex-1 px-6 py-4 rounded-2xl text-base font-semibold transition ${
+                activeTab === "trainings"
+                  ? "bg-ocean text-white shadow-md"
+                  : "bg-transparent text-gray-700 hover:bg-cream"
+              }`}
+            >
+              Trainings
+            </button>
           </div>
         </div>
       </section>
@@ -86,6 +97,7 @@ export default function AdminPage() {
       {activeTab === "hosts" && <HostApplications />}
       {activeTab === "clients" && <ClientDirectory />}
       {activeTab === "clothing" && <ClothingInventory />}
+      {activeTab === "trainings" && <AdminTrainings />}
 
       <Footer />
     </main>
