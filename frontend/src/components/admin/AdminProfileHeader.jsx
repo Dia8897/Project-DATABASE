@@ -1,11 +1,25 @@
-import React, { useEffect, useState } from "react";
-import { Mail, Phone, MapPin, ShieldCheck } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
+import { Mail, Phone, MapPin, ShieldCheck, Camera } from "lucide-react";
 
-export default function AdminProfileHeader({ admin }) {
+export default function AdminProfileHeader({ admin, onFileSelect }) {
   const [imageError, setImageError] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const fileInputRef = useRef(null);
+
   useEffect(() => {
     setImageError(false);
   }, [admin?.profilePic]);
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file && onFileSelect) {
+      onFileSelect(file);
+    }
+  };
 
   const initials = `${admin?.fName?.[0] || ""}${admin?.lName?.[0] || ""}` || "A";
   const fullName = [admin?.fName, admin?.lName].filter(Boolean).join(" ") || "Admin";
@@ -22,19 +36,31 @@ export default function AdminProfileHeader({ admin }) {
     <section className="px-4">
       <div className="max-w-6xl mx-auto bg-white rounded-[3rem] p-8 md:p-12 shadow-xl border border-gray-100">
         <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-          {avatarSrc ? (
-            <img
-              src={avatarSrc}
-              alt={fullName}
-              className="w-20 h-20 rounded-2xl object-cover border-4 border-cream shadow-lg"
-              onError={() => setImageError(true)}
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="w-20 h-20 rounded-2xl bg-ocean text-white text-3xl font-bold flex items-center justify-center shadow-lg">
-              {initials}
-            </div>
-          )}
+          <div
+            className="relative cursor-pointer"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            onClick={handleAvatarClick}
+          >
+            {avatarSrc ? (
+              <img
+                src={avatarSrc}
+                alt={fullName}
+                className="w-20 h-20 rounded-2xl object-cover border-4 border-cream shadow-lg"
+                onError={() => setImageError(true)}
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-2xl bg-ocean text-white text-3xl font-bold flex items-center justify-center shadow-lg">
+                {initials}
+              </div>
+            )}
+            {isHovered && (
+              <div className="absolute inset-0 bg-black/50 rounded-2xl flex items-center justify-center">
+                <Camera size={20} className="text-white" />
+              </div>
+            )}
+          </div>
 
           <div className="flex-1 space-y-3">
             <div className="flex items-center gap-3">
@@ -73,6 +99,13 @@ export default function AdminProfileHeader({ admin }) {
           })}
         </div>
       </div>
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="image/*"
+        style={{ display: 'none' }}
+      />
     </section>
   );
 }

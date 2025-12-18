@@ -19,7 +19,7 @@ export default function ClothingInventory() {
   const [newItem, setNewItem] = useState({
     clothingLabel: "",
     description: "",
-    picture: "",
+    picture: null, // file
     stockRows: [createEmptyStockRow()],
   });
   const [adding, setAdding] = useState(false);
@@ -328,14 +328,50 @@ export default function ClothingInventory() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-semibold text-gray-700">Photo URL</label>
-                  <input
-                    type="url"
-                    className="mt-1 w-full rounded-2xl border border-gray-200 px-4 py-2.5 focus:ring-2 focus:ring-ocean/40 focus:outline-none"
-                    placeholder="https://example.com/dress.jpg"
-                    value={newItem.picture}
-                    onChange={(e) => setNewItem((prev) => ({ ...prev, picture: e.target.value }))}
-                  />
+                  <label className="text-sm font-semibold text-gray-700">Photo</label>
+                  <div className="mt-1">
+                    {newItem.picture ? (
+                      <div className="relative">
+                        <img
+                          src={newItem.picture}
+                          alt="Preview"
+                          className="w-full h-32 object-cover rounded-2xl border border-gray-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setNewItem((prev) => ({ ...prev, picture: null }))}
+                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer hover:border-ocean transition">
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          <svg className="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+                            <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
+                          </svg>
+                          <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
+                          <p className="text-xs text-gray-500">PNG, JPG or GIF</p>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                setNewItem((prev) => ({ ...prev, picture: reader.result }));
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
                 </div>
               </div>
               <div>

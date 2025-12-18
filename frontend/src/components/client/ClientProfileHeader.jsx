@@ -1,12 +1,27 @@
-import React, { useEffect, useState } from "react";
-import { Mail, Phone, MapPin } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
+import { Mail, Phone, MapPin, Camera } from "lucide-react";
 
-export default function ClientProfileHeader({ client, stats }) {
+export default function ClientProfileHeader({ client, stats, onFileSelect }) {
   const [imageError, setImageError] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const fileInputRef = useRef(null);
+
   useEffect(() => {
     // Reset error when profilePic changes so a new URL can load.
     setImageError(false);
   }, [client?.profilePic]);
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file && onFileSelect) {
+      onFileSelect(file);
+    }
+  };
+
   const initials = `${client?.fName?.[0] || ""}${client?.lName?.[0] || ""}` || "C";
   const displayName = [client?.fName, client?.lName].filter(Boolean).join(" ") || "Client";
   const subtitle =
@@ -27,19 +42,31 @@ export default function ClientProfileHeader({ client, stats }) {
       <div className="max-w-6xl mx-auto bg-white rounded-[3rem] p-8 md:p-12 shadow-xl border border-gray-100">
         <div className="space-y-8">
           <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-            {avatarSrc ? (
-              <img
-                src={avatarSrc}
-                alt={displayName}
-                className="w-16 h-16 rounded-2xl object-cover border-4 border-cream shadow-lg"
-                onError={() => setImageError(true)}
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div className="w-16 h-16 rounded-2xl bg-ocean text-white text-2xl font-bold flex items-center justify-center shadow-lg">
-                {initials}
-              </div>
-            )}
+            <div
+              className="relative cursor-pointer"
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
+              onClick={handleAvatarClick}
+            >
+              {avatarSrc ? (
+                <img
+                  src={avatarSrc}
+                  alt={displayName}
+                  className="w-16 h-16 rounded-2xl object-cover border-4 border-cream shadow-lg"
+                  onError={() => setImageError(true)}
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-2xl bg-ocean text-white text-2xl font-bold flex items-center justify-center shadow-lg">
+                  {initials}
+                </div>
+              )}
+              {isHovered && (
+                <div className="absolute inset-0 bg-black/50 rounded-2xl flex items-center justify-center">
+                  <Camera size={20} className="text-white" />
+                </div>
+              )}
+            </div>
             <div className="space-y-2">
               <p className="text-xs uppercase tracking-[0.4em] text-ocean font-semibold">
                 Client Profile
@@ -95,6 +122,13 @@ export default function ClientProfileHeader({ client, stats }) {
           </div>
         </div>
       </div>
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="image/*"
+        style={{ display: 'none' }}
+      />
     </section>
   );
 }

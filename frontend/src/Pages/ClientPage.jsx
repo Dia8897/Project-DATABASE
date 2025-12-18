@@ -51,6 +51,7 @@ export default function ClientPage() {
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
   const [profilePicUrl, setProfilePicUrl] = useState("");
+  const [selectedFile, setSelectedFile] = useState(null);
   const [profilePicError, setProfilePicError] = useState("");
   const [profilePicSuccess, setProfilePicSuccess] = useState("");
   const [savingProfilePic, setSavingProfilePic] = useState(false);
@@ -75,6 +76,7 @@ export default function ClientPage() {
   const resolvePicture = (picture) => {
     const origin = (api.defaults.baseURL || "").replace(/\/api$/, "");
     if (!picture) return picture;
+    if (picture.startsWith("data:")) return picture; // base64
     if (picture.startsWith("http")) return picture;
     if (picture.startsWith("/")) return `${origin}${picture}`;
     return `${origin}/${picture}`;
@@ -251,12 +253,10 @@ export default function ClientPage() {
     }
   };
 
-  const handleProfilePicSave = async (e) => {
-    e.preventDefault();
+  const saveProfilePic = async (data) => {
     setProfilePicError("");
     setProfilePicSuccess("");
 
-    const trimmed = profilePicUrl.trim();
     const clientId = client?.clientId || client?.userId || client?.id;
     if (!clientId) {
       setProfilePicError("Unable to find your account id. Please sign in again.");
@@ -265,11 +265,12 @@ export default function ClientPage() {
 
     setSavingProfilePic(true);
     try {
-      await api.put(`/clients/${clientId}`, { profilePic: trimmed || null });
-      const updatedClient = { ...(client || {}), profilePic: trimmed || null };
+      await api.put(`/clients/${clientId}`, { profilePic: data });
+      const updatedClient = { ...(client || {}), profilePic: data };
       setClient(updatedClient);
       localStorage.setItem("user", JSON.stringify(updatedClient));
       setProfilePicSuccess("Profile photo updated.");
+      setSelectedFile(null);
     } catch (err) {
       const message = err?.response?.data?.message || err.message || "Failed to update profile photo";
       setProfilePicError(message);
@@ -278,12 +279,46 @@ export default function ClientPage() {
     }
   };
 
+  const handleProfilePicSave = async (e) => {
+    e.preventDefault();
+    let profilePicData = null;
+    if (selectedFile) {
+      // Read file as base64
+      const reader = new FileReader();
+      reader.onload = async () => {
+        profilePicData = reader.result; // data:image/...;base64,...
+        await saveProfilePic(profilePicData);
+      };
+      reader.onerror = () => {
+        setProfilePicError("Failed to read the selected file.");
+      };
+      reader.readAsDataURL(selectedFile);
+      return;
+    } else {
+      await saveProfilePic(null);
+    }
+  };
+
+  const handleFileSelect = async (file) => {
+    setSelectedFile(file);
+    // Auto save
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const data = reader.result;
+      await saveProfilePic(data);
+    };
+    reader.onerror = () => {
+      setProfilePicError("Failed to read the selected file.");
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <main className="bg-pearl min-h-screen">
       <Navbar />
 
       <div className="pt-24 space-y-8">
-        <ClientProfileHeader client={client} stats={clientStats} />
+        <ClientProfileHeader client={client} stats={clientStats} onFileSelect={handleFileSelect} />
 
         <section className="px-4" ref={navRef}>
           <div className="max-w-6xl mx-auto">
@@ -348,51 +383,7 @@ export default function ClientPage() {
               />
             ) : activeTab === "settings" ? (
               <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-8 space-y-10">
-                <div className="space-y-2">
-                  <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">
-                    Profile
-                  </p>
-                  <h2 className="text-2xl font-bold text-gray-900">Profile Photo</h2>
-                  <p className="text-sm text-gray-500">
-                    Paste an image URL to personalize your profile.
-                  </p>
-                </div>
 
-                {profilePicError && (
-                  <div className="bg-red-50 border border-red-100 text-red-700 text-sm rounded-2xl px-4 py-3">
-                    {profilePicError}
-                  </div>
-                )}
-                {profilePicSuccess && (
-                  <div className="bg-green-50 border border-green-100 text-green-700 text-sm rounded-2xl px-4 py-3">
-                    {profilePicSuccess}
-                  </div>
-                )}
-
-                <form onSubmit={handleProfilePicSave} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Profile Photo URL
-                    </label>
-                    <input
-                      type="url"
-                      value={profilePicUrl}
-                      onChange={(e) => setProfilePicUrl(e.target.value)}
-                      placeholder="https://example.com/photo.jpg"
-                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean bg-white"
-                      disabled={savingProfilePic}
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      className="px-6 py-3 rounded-xl bg-ocean text-white text-sm font-semibold shadow-md hover:bg-ocean/90 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                      disabled={savingProfilePic}
-                    >
-                      {savingProfilePic ? "Saving..." : "Save Photo"}
-                    </button>
-                  </div>
-                </form>
 
                 <div className="space-y-2">
                   <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">

@@ -306,7 +306,7 @@ router.post("/", verifyToken, isClient, async (req, res) => {
   }
 
   if (start >= end) {
-    return res.status(400).json({ message: "endsAt must be after startsAt" });
+    return res.status(400).json({ message: "End date should be after Start Date" });
   }
   //if the client sent a title, trim whitespaces and use it, otherwise autogenerate one
   const title = req.body.title?.trim() || `${type} on ${String(startsAt).split("T")[0]}`;
@@ -372,18 +372,15 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   } = req.body;
 
   if (!req.body || Object.keys(req.body).length === 0) {
-  return res.status(400).json({ message: "No fields to update" });
-}
+    return res.status(400).json({ message: "No fields to update" });
+  }
 
 //if a status was provided and it’s not one of pending|accepted|rejected--> error.
   if (status && !ALLOWED_STATUSES.includes(status)) {
     return res.status(400).json({ message: "Invalid status" });
   }
-// both startsAt and endsAt were provided, ensure they’re valid dates and endsAt is after startsA
+  // both startsAt and endsAt were provided, ensure they're valid dates and endsAt is after startsAt
   if (startsAt && endsAt) {
-    if (!HAS_TIME.test(String(startsAt)) || !HAS_TIME.test(String(endsAt))) {
-      return res.status(400).json({ message: "startsAt and endsAt must include a time (e.g., 2026-06-15T09:00:00Z)" });
-    }
     const now = new Date();
     const start = new Date(startsAt);
     const end = new Date(endsAt);
@@ -393,11 +390,11 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
     }
 
     if (start < now || end < now) {
-      return res.status(400).json({ message: "Dates must be in the future" });
+      return res.status(400).json({ message: "Dates must be in the future!" });
     }
 
     if (start >= end) {
-      return res.status(400).json({ message: "endsAt must be after startsAt" });
+      return res.status(400).json({ message: "End date must be after Start date" });
     }
   }
 

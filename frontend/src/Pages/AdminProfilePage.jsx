@@ -7,6 +7,7 @@ import api from "../services/api";
 export default function AdminProfilePage() {
   const [admin, setAdmin] = useState(null);
   const [profilePicUrl, setProfilePicUrl] = useState("");
+  const [selectedFile, setSelectedFile] = useState(null);
   const [profilePicError, setProfilePicError] = useState("");
   const [profilePicSuccess, setProfilePicSuccess] = useState("");
   const [savingProfilePic, setSavingProfilePic] = useState(false);
@@ -48,8 +49,7 @@ export default function AdminProfilePage() {
 
   const resolveAdminId = () => admin?.adminId || admin?.id;
 
-  const handleProfilePicSave = async (e) => {
-    e.preventDefault();
+  const saveProfilePic = async (data) => {
     setProfilePicError("");
     setProfilePicSuccess("");
 
@@ -59,20 +59,54 @@ export default function AdminProfilePage() {
       return;
     }
 
-    const trimmed = profilePicUrl.trim();
     setSavingProfilePic(true);
     try {
-      await api.put(`/admins/${adminId}`, { profilePic: trimmed || null });
-      const updatedAdmin = { ...(admin || {}), profilePic: trimmed || null };
+      await api.put(`/admins/${adminId}`, { profilePic: data });
+      const updatedAdmin = { ...(admin || {}), profilePic: data };
       setAdmin(updatedAdmin);
       localStorage.setItem("user", JSON.stringify(updatedAdmin));
       setProfilePicSuccess("Profile photo updated.");
+      setSelectedFile(null);
     } catch (err) {
       const message = err?.response?.data?.message || err.message || "Failed to update profile photo";
       setProfilePicError(message);
     } finally {
       setSavingProfilePic(false);
     }
+  };
+
+  const handleProfilePicSave = async (e) => {
+    e.preventDefault();
+    let profilePicData = null;
+    if (selectedFile) {
+      // Read file as base64
+      const reader = new FileReader();
+      reader.onload = async () => {
+        profilePicData = reader.result; // data:image/...;base64,...
+        await saveProfilePic(profilePicData);
+      };
+      reader.onerror = () => {
+        setProfilePicError("Failed to read the selected file.");
+      };
+      reader.readAsDataURL(selectedFile);
+      return;
+    } else {
+      await saveProfilePic(null);
+    }
+  };
+
+  const handleFileSelect = async (file) => {
+    setSelectedFile(file);
+    // Auto save
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const data = reader.result;
+      await saveProfilePic(data);
+    };
+    reader.onerror = () => {
+      setProfilePicError("Failed to read the selected file.");
+    };
+    reader.readAsDataURL(file);
   };
 
   const handlePasswordChange = async (e) => {
@@ -118,7 +152,7 @@ export default function AdminProfilePage() {
       <Navbar />
 
       <div className="pt-24 space-y-8">
-        <AdminProfileHeader admin={admin} />
+        <AdminProfileHeader admin={admin} onFileSelect={handleFileSelect} />
 
         <section className="px-4 pb-16">
           <div className="max-w-6xl mx-auto space-y-6">
@@ -133,43 +167,7 @@ export default function AdminProfilePage() {
                 </p>
               </div>
 
-              <div className="space-y-6">
-                {profilePicError && (
-                  <div className="bg-red-50 border border-red-100 text-red-700 text-sm rounded-2xl px-4 py-3">
-                    {profilePicError}
-                  </div>
-                )}
-                {profilePicSuccess && (
-                  <div className="bg-green-50 border border-green-100 text-green-700 text-sm rounded-2xl px-4 py-3">
-                    {profilePicSuccess}
-                  </div>
-                )}
 
-                <form onSubmit={handleProfilePicSave} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Profile Photo URL
-                    </label>
-                    <input
-                      type="url"
-                      value={profilePicUrl}
-                      onChange={(e) => setProfilePicUrl(e.target.value)}
-                      placeholder="https://example.com/photo.jpg"
-                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean bg-white"
-                      disabled={savingProfilePic}
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      className="px-6 py-3 rounded-xl bg-ocean text-white text-sm font-semibold shadow-md hover:bg-ocean/90 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                      disabled={savingProfilePic}
-                    >
-                      {savingProfilePic ? "Saving..." : "Save Photo"}
-                    </button>
-                  </div>
-                </form>
-              </div>
             </div>
 
             <div className="bg-white rounded-3xl border border-gray-100 shadow p-8 space-y-6">

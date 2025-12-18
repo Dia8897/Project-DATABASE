@@ -20,7 +20,19 @@ const combineDateAndTime = (date, timeStr) => {
 const timeOptions = [
   "08:00", "09:00", "10:00", "11:00", "12:00",
   "13:00", "14:00", "15:00", "16:00", "17:00",
-  "18:00", "19:00", "20:00", "21:00",
+  "18:00", "19:00", "20:00", "21:00","22:00","23:00","24:00"
+];
+
+const locationOptions = [
+  "Grand Hyatt Beirut",
+  "Le Royal Hotels & Resorts",
+  "Four Seasons Hotel Beirut",
+  "The Phoenicia Hotel",
+  "Le Gray Beirut",
+  "InterContinental Beirut",
+  "Radisson Blu Martinez",
+  "Gefinor Rotana",
+  "Monroe Hotel"
 ];
 
 export default function ClientEventRequest({
@@ -183,17 +195,23 @@ export default function ClientEventRequest({
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Location
+                  Event Location
                 </label>
-                <input
-                  type="text"
-                  placeholder="Venue or address"
+                <select
                   value={location}
                   onChange={(e) => onLocationChange(e.target.value)}
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean bg-white"
                   disabled={submitting}
                   required
-                />
+                >
+                 <option value="" disabled hidden>
+                  Select a location
+                  </option>
+
+                  {locationOptions.map((loc) => (
+                    <option key={loc} value={loc}>{loc}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
