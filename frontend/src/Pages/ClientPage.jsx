@@ -5,7 +5,6 @@ import ClientEventList from "../components/ClientEventList";
 import ClientEventRequest from "../components/ClientEventRequest";
 import ClientProfileHeader from "../components/client/ClientProfileHeader";
 import api, { clothingAPI } from "../services/api";
-
 import wedding from "../pics/wedding.png";
 import birthday from "../pics/birthday.png";
 import baby from "../pics/babyWelcomming.png";
@@ -169,7 +168,7 @@ export default function ClientPage() {
       location: location.trim(),
       startsAt: toMySqlDateTime(startDateTime),
       endsAt: toMySqlDateTime(endDateTime),
-      nbOfHosts: Number(guests),
+      nbOfHosts: Math.ceil(Number(guests) / 5),
       clothesId: selectedClothesId || null,
     };
 

@@ -71,18 +71,12 @@ export default function ProfileHeader({ profile, onFileSelect }) {
               </div>
               <div className="flex items-center gap-2">
                 <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
-                  profile.eligibility === "approved" 
-                    ? "bg-mint/30 text-green-700 border border-mint" 
+                  profile.eligibility === "approved"
+                    ? "bg-mint/30 text-green-700 border border-mint"
                     : "bg-rose/30 text-rose border border-rose"
                 }`}>
                   {profile.eligibility === "approved" ? "Verified Host" : "Pending Verification"}
                 </span>
-                {profile.rating && (
-                  <span className="px-4 py-2 rounded-full bg-sky text-ocean text-sm font-semibold flex items-center gap-1">
-                    <Star size={14} fill="currentColor" />
-                    {profile.rating}
-                  </span>
-                )}
               </div>
             </div>
 
@@ -117,12 +111,7 @@ export default function ProfileHeader({ profile, onFileSelect }) {
                       {lang}
                     </span>
                   ))
-                ) : (
-                  <span className="text-xs text-gray-500">
-                    {/* Languages are not tracked in the DB yet; keep placeholder for future column. */}
-                    Languages coming soon
-                  </span>
-                )}
+                ) : null}
               </div>
             </div>
           </div>

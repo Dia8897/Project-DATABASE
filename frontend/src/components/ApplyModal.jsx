@@ -18,13 +18,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
     Boolean(currentUser.isActive);
 
   const buildFormFromProfile = useCallback(() => {
-    const years = currentUser?.yearsOfExperience || 0;
-    const derivedExperience =
-      years >= 4 ? "seasoned" : years > 0 ? "junior" : "first_timer";
     return {
-      experience: derivedExperience,
-      languages: currentUser?.spokenLanguages || [],
-      availability: [],
       motivation: "",
       agreeToPolicy: false,
     };
@@ -100,8 +94,6 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
       if (!manualApplicant.lastName.trim()) nextErrors.lastName = "Required";
       if (!manualApplicant.email.trim()) nextErrors.email = "Required";
     }
-    if (form.availability.length === 0)
-      nextErrors.availability = "Select at least one";
     if (!form.agreeToPolicy) nextErrors.agreeToPolicy = "Please accept";
 
     setErrors(nextErrors);
@@ -229,7 +221,6 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
       (!manualApplicant.firstName.trim() ||
         !manualApplicant.lastName.trim() ||
         !manualApplicant.email.trim())) ||
-    form.availability.length === 0 ||
     !form.agreeToPolicy;
 
   return (
@@ -374,70 +365,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
             </div>
           </section>
 
-          <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800">Experience & skills</h3>
-            <div className="flex flex-wrap gap-2">
-              {experienceOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => handleExperienceChange(option.value)}
-                  className={`px-4 py-2 rounded-full border text-sm font-medium transition ${
-                    form.experience === option.value
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-cream"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
 
-            <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Languages</p>
-              <div className="flex flex-wrap gap-2">
-                {languageOptions.map((lang) => (
-                  <button
-                    type="button"
-                    key={lang}
-                    onClick={() => toggleArrayField("languages", lang)}
-                    className={`px-3 py-2 rounded-lg border text-sm transition ${
-                      form.languages.includes(lang)
-                        ? "bg-sky text-ocean border-ocean/50"
-                        : "bg-white text-gray-700 border-gray-300 hover:bg-cream"
-                    }`}
-                  >
-                    {lang}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <section className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-800">Availability</h3>
-              {errors.availability && (
-                <p className="text-xs text-red-500">{errors.availability}</p>
-              )}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {availabilityOptions.map((slot) => (
-                <button
-                  type="button"
-                  key={slot}
-                  onClick={() => toggleArrayField("availability", slot)}
-                  className={`px-4 py-3 rounded-xl border text-sm font-semibold text-left transition ${
-                    form.availability.includes(slot)
-                      ? "bg-ocean text-white border-ocean"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-cream"
-                  }`}
-                >
-                  {slot}
-                </button>
-              ))}
-            </div>
-          </section>
 
           <section className="space-y-4">
             <div>

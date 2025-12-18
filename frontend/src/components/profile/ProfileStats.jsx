@@ -5,13 +5,12 @@ export default function ProfileStats({ profile, eventsCount, clientsCount }) {
     { label: "Years Experience", value: profile.yearsOfExperience || 0 },
     { label: "Events Attended", value: eventsCount },
     { label: "Clients Worked With", value: clientsCount },
-    { label: "Average Rating", value: profile.rating ? `${profile.rating}/5` : "N/A" },
   ];
 
   return (
     <section className="px-4">
       <div className="max-w-6xl mx-auto">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-8 max-w-5xl mx-auto">
           {stats.map((stat) => (
             <div
               key={stat.label}
