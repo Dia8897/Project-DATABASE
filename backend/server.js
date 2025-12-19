@@ -16,6 +16,7 @@ import clothingRoutes from "./routes/clothingRoutes.js";
 import transportationRoutes from "./routes/transportationRoutes.js";
 import hostRoutes from "./routes/hostRoutes.js";
 
+process.env.DOTENV_CONFIG_SILENT = 'true';
 dotenv.config();
 
 const app = express();

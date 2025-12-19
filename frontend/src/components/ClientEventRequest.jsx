@@ -51,7 +51,7 @@ export default function ClientEventRequest({
   eventType,
   startDateTime,
   endDateTime,
-  guests,
+  nbOfGuests,
   location,
   description,
   clothingOptions = [],
@@ -314,7 +314,7 @@ export default function ClientEventRequest({
                   type="number"
                   min="1"
                   placeholder="e.g. 120"
-                  value={guests}
+                  value={nbOfGuests}
                   onChange={(e) => onGuestsChange(e.target.value)}
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ocean focus:border-ocean bg-white"
                   disabled={submitting}

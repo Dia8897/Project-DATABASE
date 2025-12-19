@@ -3,7 +3,6 @@ import { useParams } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import AcceptedHosts from "../components/teamleader/AcceptedHosts";
-import EventPlanSeating from "../components/teamleader/EventPlanSeating";
 import { Calendar, MapPin, Users, Clock, Building2, Star, AlertTriangle, Bus } from "lucide-react";
 import api, { reviewAPI } from "../services/api";
 
@@ -49,84 +48,14 @@ const addMinutes = (isoString, minutes) => {
   return new Date(base.getTime() + minutes * 60000);
 };
 
-const buildEventPlan = (event, hostList) => {
-  if (!event?.startsAt || !event?.endsAt) return null;
-
-  const start = new Date(event.startsAt);
-  const end = new Date(event.endsAt);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return null;
-  }
-
-  const formatTimeOnly = (dateObj) =>
-    dateObj ? dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "TBA";
-
-  const venueLabel = event.venue || event.location || "Venue TBA";
-  const schedule = [
-    {
-      time: formatTimeOnly(addMinutes(event.startsAt, -120)),
-      activity: "Team arrival & uniform check",
-      location: venueLabel,
-    },
-    {
-      time: formatTimeOnly(addMinutes(event.startsAt, -90)),
-      activity: "Briefing with client / admin",
-      location: venueLabel,
-    },
-    {
-      time: formatTimeOnly(start),
-      activity: "Guest arrival & welcome",
-      location: event.location || "Main entrance",
-    },
-    {
-      time: formatTimeOnly(addMinutes(start.toISOString(), 90)),
-      activity: "Peak guest support",
-      location: "Assigned zones",
-    },
-    {
-      time: formatTimeOnly(end),
-      activity: "Closing & farewell",
-      location: venueLabel,
-    },
-    {
-      time: formatTimeOnly(addMinutes(event.endsAt, 30)),
-      activity: "Debrief & wrap-up",
-      location: venueLabel,
-    },
-  ].filter((item) => item.time !== "TBA");
-
-  const zoneTemplates = [
-    {
-      name: "Entrance & Registration",
-      duties: "Welcome guests, manage guest list, coordinate arrivals with security.",
-    },
-    {
-      name: "VIP & Client Liaison",
-      duties: "Escort VIP guests, ensure client requests are handled promptly.",
-    },
-    {
-      name: "Main Floor Support",
-      duties: "Monitor crowd flow, support host rotation, communicate updates to TL.",
-    },
-  ];
-
-  const assignedZones = zoneTemplates.map((zone) => ({ ...zone, hosts: [] }));
-  hostList.forEach((host, index) => {
-    const targetZone = assignedZones[index % assignedZones.length];
-    targetZone.hosts.push(host.name || `Host ${index + 1}`);
-  });
-
-  const seatingCapacity = Math.max(80, (event.nbOfHosts || hostList.length || 1) * 12);
-  const tableCount = Math.max(6, Math.ceil(seatingCapacity / 8));
+const getEventDetails = (event) => {
+  if (!event) return null;
 
   return {
-    schedule,
-    zones: assignedZones,
-    seatingCapacity,
-    tableCount,
-    notes: `Ensure all zones check in with you every 30 minutes. ${
-      event.dressCode ? `Dress code: ${event.dressCode}.` : ""
-    }`,
+    guests: event.nbOfGuests ? String(event.nbOfGuests) : "Not specified",
+    clothing: event.outfit?.label || "Not specified",
+    transportation: event.transportationAvailable ? "Arranged" : "Not arranged",
+    type: event.type || "General event",
   };
 };
 
@@ -364,11 +293,11 @@ export default function TeamLeaderEventPage() {
   const tabs = useMemo(
     () => [
       { id: "hosts", label: "Team Members", count: hosts.length },
-      { id: "plan", label: "Event Plan & Seating", count: null },
+      { id: "details", label: "Event Details", count: null },
     ],
     [hosts.length]
   );
-  const planData = useMemo(() => buildEventPlan(eventData, hosts), [eventData, hosts]);
+  const eventDetails = useMemo(() => getEventDetails(eventData), [eventData]);
   const targetHostCount = eventData?.nbOfHosts ?? hosts.length ?? 0;
   const confirmedHostCount =
     typeof eventData?.acceptedHostsCount === "number"
@@ -771,16 +700,33 @@ export default function TeamLeaderEventPage() {
               />
             )}
 
-            {activeTab === "plan" &&
-              (planData ? (
-                <EventPlanSeating plan={planData} />
+            {activeTab === "details" &&
+              (eventDetails ? (
+                <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-8">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-6">Additional Event Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-cream rounded-2xl p-4">
+                      <p className="text-sm font-semibold text-gray-700 mb-2">Number of Guests</p>
+                      <p className="text-lg text-gray-900">{eventDetails.guests}</p>
+                    </div>
+                    <div className="bg-cream rounded-2xl p-4">
+                      <p className="text-sm font-semibold text-gray-700 mb-2">Clothing Required</p>
+                      <p className="text-lg text-gray-900">{eventDetails.clothing}</p>
+                    </div>
+                    <div className="bg-cream rounded-2xl p-4">
+                      <p className="text-sm font-semibold text-gray-700 mb-2">Transportation</p>
+                      <p className="text-lg text-gray-900">{eventDetails.transportation}</p>
+                    </div>
+                    <div className="bg-cream rounded-2xl p-4">
+                      <p className="text-sm font-semibold text-gray-700 mb-2">Event Type</p>
+                      <p className="text-lg text-gray-900">{eventDetails.type}</p>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-8 text-center text-gray-600">
-                  <p className="font-semibold text-gray-900 mb-2">Event plan unavailable</p>
-                  <p className="text-sm">
-                    We need confirmed start and end times to generate a timeline. Once the event
-                    dates are finalized, the plan will appear automatically.
-                  </p>
+                  <p className="font-semibold text-gray-900 mb-2">Event details unavailable</p>
+                  <p className="text-sm">Additional information will appear here once loaded.</p>
                 </div>
               ))}
           </div>

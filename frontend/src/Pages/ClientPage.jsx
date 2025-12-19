@@ -168,7 +168,7 @@ export default function ClientPage() {
       location: location.trim(),
       startsAt: toMySqlDateTime(startDateTime),
       endsAt: toMySqlDateTime(endDateTime),
-      nbOfHosts: Math.ceil(Number(guests) / 5),
+      nbOfGuests: Number(guests),
       clothesId: selectedClothesId || null,
     };
 

@@ -20,9 +20,13 @@ router.get("/", verifyToken, isUserOrAdmin, async (req, res) => {
                u.email AS applicantEmail,
                u.phoneNb AS applicantPhone,
                u.clothingSize AS applicantClothingSize,
-               u.description AS applicantDescription
+               u.description AS applicantDescription,
+               e.title AS eventTitle,
+               e.location AS eventLocation,
+               DATE(e.startsAt) AS eventDate
           FROM EVENT_APP ea
           JOIN USERS u ON u.userId = ea.senderId
+          LEFT JOIN EVENTS e ON e.eventId = ea.eventId
          ORDER BY ea.sentAt DESC`;
     } else {
       query = `
@@ -33,9 +37,13 @@ router.get("/", verifyToken, isUserOrAdmin, async (req, res) => {
                u.email AS applicantEmail,
                u.phoneNb AS applicantPhone,
                u.clothingSize AS applicantClothingSize,
-               u.description AS applicantDescription
+               u.description AS applicantDescription,
+               e.title AS eventTitle,
+               e.location AS eventLocation,
+               DATE(e.startsAt) AS eventDate
           FROM EVENT_APP ea
           JOIN USERS u ON u.userId = ea.senderId
+          JOIN EVENTS e ON e.eventId = ea.eventId
          WHERE ea.senderId = ?
          ORDER BY ea.sentAt DESC`;
       params.push(req.user.id);

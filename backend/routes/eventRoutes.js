@@ -158,6 +158,7 @@ router.get("/:id/team-view", verifyToken, isUserOrAdmin, async (req, res) => {
         startsAt: normalizeDate(event.startsAt),
         endsAt: normalizeDate(event.endsAt),
         nbOfHosts: event.nbOfHosts,
+        nbOfGuests: event.nbOfGuests || null,
         acceptedHostsCount: event.acceptedHostsCount || 0,
         dressCode: event.dressCode ?? null,
         status: event.status,
@@ -282,11 +283,11 @@ router.get("/:id", async (req, res) => {
 
 // Client creates an event request (pending)
 router.post("/", verifyToken, isClient, async (req, res) => {
-  const { type, description, location, startsAt, endsAt, nbOfHosts } = req.body;
+  const { type, description, location, startsAt, endsAt, nbOfGuests } = req.body;
 
   // Quick validation
-  if (!type || !description || !location || !startsAt || !endsAt || !nbOfHosts) {
-    return res.status(400).json({ message: "type, description, location, startsAt, endsAt, and nbOfHosts are required" });
+  if (!type || !description || !location || !startsAt || !endsAt || !nbOfGuests) {
+    return res.status(400).json({ message: "type, description, location, startsAt, endsAt, and nbOfGuests are required" });
   }
   if (!HAS_TIME.test(String(startsAt)) || !HAS_TIME.test(String(endsAt))) {
     return res.status(400).json({ message: "startsAt and endsAt must include a time (e.g., 2026-06-15 00:00:00)" });
@@ -315,9 +316,9 @@ router.post("/", verifyToken, isClient, async (req, res) => {
     const [result] = await db.query(
       `INSERT INTO EVENTS (
          title, type, description, location, startsAt, endsAt,
-         nbOfHosts, floorPlan, attendeesList, rate,
+         nbOfHosts, nbOfGuests, floorPlan, attendeesList, rate,
          teamLeaderId, clothesId, clientId, adminId, status
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       , [
         title,
         type,
@@ -325,7 +326,8 @@ router.post("/", verifyToken, isClient, async (req, res) => {
         location,
         startsAt,
         endsAt,
-        Number(nbOfHosts),
+        Math.max(1, Math.ceil(Number(nbOfGuests) / 5)),
+        Number(nbOfGuests),
         req.body.floorPlan ?? null,
         req.body.attendeesList ?? null,
         req.body.rate ?? null,

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { User, CheckCircle, XCircle, Mail, Phone, Award, Eye, X, MapPin } from "lucide-react";
 import api, { adminAPI } from "../../services/api";
 import useBodyScrollLock from "../../hooks/useBodyScrollLock";
+import AcceptApplicationModal from "./AcceptApplicationModal";
 
 const FALLBACK_DESCRIPTION = "No additional notes provided.";
 const HYDRATION_FIELDS = ["applicantFirstName", "applicantLastName", "applicantEmail", "applicantPhone"];
@@ -62,6 +63,9 @@ const normalizeApplication = (app) => {
       app.requestDress === true ||
       app.requestDress === "true" ||
       Number(app.requestDress) === 1,
+    eventTitle: app.eventTitle || "Event Title Unavailable",
+    eventLocation: app.eventLocation || "Location Unavailable",
+    eventDate: formatDate(app.eventDate) || "Date Unavailable",
   };
 };
 
@@ -146,7 +150,8 @@ export default function HostApplications() {
   const [pendingError, setPendingError] = useState("");
   const [hostActionState, setHostActionState] = useState(null);
   const [onboardingFilter, setOnboardingFilter] = useState("all");
-  useBodyScrollLock(Boolean(profileModal || hostActionState));
+  const [acceptModal, setAcceptModal] = useState(null);
+  useBodyScrollLock(Boolean(profileModal || hostActionState || acceptModal));
 
   useEffect(() => {
     let cancelled = false;
@@ -619,6 +624,13 @@ export default function HostApplications() {
                           </div>
                           <h3 className="text-xl font-bold text-gray-900">{app.name}</h3>
                           <p className="text-sm text-gray-500 mt-1">Applied on {app.appliedDate}</p>
+                          <div className="mt-2 p-3 bg-cream rounded-xl border border-gray-100">
+                            <p className="text-sm font-semibold text-gray-900">{app.eventTitle}</p>
+                            <p className="text-xs text-gray-600 flex items-center gap-1">
+                              <MapPin size={12} />
+                              {app.eventLocation} • {app.eventDate}
+                            </p>
+                          </div>
                         </div>
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(
@@ -700,7 +712,7 @@ export default function HostApplications() {
                           <button
                             type="button"
                             disabled={!isPending}
-                            onClick={() => handleAccept(app.id, app.requestedRole)}
+                            onClick={() => setAcceptModal(app)}
                             className={`flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full font-semibold transition ${
                               isPending
                                 ? "text-white bg-ocean hover:bg-ocean/90"
@@ -896,6 +908,17 @@ export default function HostApplications() {
             </div>
           </div>
         </div>
+      )}
+
+      {acceptModal && (
+        <AcceptApplicationModal
+          application={acceptModal}
+          onClose={() => setAcceptModal(null)}
+          onAccepted={() => {
+            updateStatus(acceptModal.id, "Accepted");
+            setAcceptModal(null);
+          }}
+        />
       )}
     </div>
   );
