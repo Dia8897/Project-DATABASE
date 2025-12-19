@@ -13,6 +13,7 @@ export default function TransportationModal({ eventAppId, hostName, onClose, onS
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
+  const [feedbackMessage, setFeedbackMessage] = useState("");
 
   useEffect(() => {
     if (!eventAppId) return;
@@ -74,13 +75,14 @@ export default function TransportationModal({ eventAppId, hostName, onClose, onS
     if (saving || !validate()) return;
 
     setSaving(true);
+    setFeedbackMessage("");
     try {
       await api.post(`/transportation/${eventAppId}`, form);
       onSaved?.();
       onClose();
     } catch (err) {
       console.error("Failed to save transportation", err);
-      alert("Failed to save transportation: " + (err.response?.data?.message || "Unknown error"));
+      setFeedbackMessage(err.response?.data?.message || "Failed to save transportation.");
     } finally {
       setSaving(false);
     }
@@ -88,13 +90,14 @@ export default function TransportationModal({ eventAppId, hostName, onClose, onS
 
   const handleDelete = async () => {
     setSaving(true);
+    setFeedbackMessage("");
     try {
       await api.delete(`/transportation/${eventAppId}`);
       onSaved?.();
       onClose();
     } catch (err) {
       console.error("Failed to delete transportation", err);
-      alert("Failed to delete transportation: " + (err.response?.data?.message || "Unknown error"));
+      setFeedbackMessage(err.response?.data?.message || "Failed to delete transportation.");
     } finally {
       setSaving(false);
     }
@@ -119,6 +122,11 @@ export default function TransportationModal({ eventAppId, hostName, onClose, onS
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {feedbackMessage && (
+            <div className="rounded-2xl border border-rose/30 bg-rose/10 px-4 py-2 text-sm text-rose-700">
+              {feedbackMessage}
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700 flex items-center gap-2">

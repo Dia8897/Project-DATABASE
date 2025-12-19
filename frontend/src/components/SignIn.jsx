@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Mail, Lock, User, ArrowRight } from "lucide-react";
+import { X, Mail, Lock, User, ArrowRight, AlertTriangle, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import api, { hostAPI, clientAPI } from "../services/api";
 import useBodyScrollLock from "../hooks/useBodyScrollLock";
 
@@ -25,9 +25,23 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
   const [activeRole, setActiveRole] = useState(initialRole);
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [status, setStatus] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const statusRef = useRef(null);
   const navigate = useNavigate();
 
   useBodyScrollLock(show);
+
+  useEffect(() => {
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+  }, [isSignUp, show]);
+
+  useEffect(() => {
+    if (status?.text && statusRef.current) {
+      statusRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [status]);
 
   if (!show) return null;
 
@@ -122,12 +136,19 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
       onClose();
       navigate(activeRole === "admin" ? "/admin" : activeRole === "client" ? "/client" : "/events");
     } catch (err) {
-      alert("Login failed: " + (err.response?.data?.message || "Unknown error"));
+      const message = err.response?.data?.message || "Login failed. Please try again.";
+      setStatus({ type: "error", text: message });
     }
   };
 
   const handleInputChange = (field) => (e) => {
     setFormData((prev) => ({ ...prev, [field]: e.target.value }));
+    if (status) setStatus(null);
+  };
+
+  const handleRoleSelect = (roleId) => {
+    setActiveRole(roleId);
+    if (status) setStatus(null);
   };
 
   const getRoleColor = (roleId) => {
@@ -141,12 +162,20 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
 
   const renderStatus = () => {
     if (!status?.text) return null;
-    const baseClasses = "px-4 py-3 rounded-xl text-sm border whitespace-pre-line";
-    const styles =
-      status.type === "success"
-        ? "bg-mint/30 border-mint/50 text-green-700"
-        : "bg-rose/10 border-rose/30 text-rose-700";
-    return <div className={`${baseClasses} ${styles}`}>{status.text}</div>;
+    const isSuccess = status.type === "success";
+    const Icon = isSuccess ? CheckCircle2 : AlertTriangle;
+    const baseClasses =
+      "flex items-start gap-3 px-4 py-3 rounded-xl text-sm border whitespace-pre-line";
+    const styles = isSuccess
+      ? "bg-mint/15 border-mint/50 text-emerald-700"
+      : "bg-rose/10 border-rose/40 text-rose-700";
+
+    return (
+      <div className={`${baseClasses} ${styles}`} ref={statusRef}>
+        <Icon size={18} className="mt-0.5 flex-shrink-0" />
+        <span className="flex-1">{status.text}</span>
+      </div>
+    );
   };
 
   return (
@@ -183,7 +212,7 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
             {visibleRoles.map((role) => (
               <button
                 key={role.id}
-                onClick={() => setActiveRole(role.id)}
+                onClick={() => handleRoleSelect(role.id)}
                 className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 ${
                   activeRole === role.id
                     ? `bg-${getRoleColor(role.id)} text-white shadow-md`
@@ -252,12 +281,19 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
             <div className="relative">
               <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={formData.password}
                 onChange={handleInputChange("password")}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean"
+                className="w-full pl-10 pr-12 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
           </div>
 
@@ -267,12 +303,19 @@ export default function AuthModal({ show, onClose, initialRole = "host" }) {
               <div className="relative">
                 <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
-                  type="password"
+                  type={showConfirmPassword ? "text" : "password"}
                   value={formData.confirmPassword}
                   onChange={handleInputChange("confirmPassword")}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean"
+                  className="w-full pl-10 pr-12 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ocean/50 focus:border-ocean"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
           )}

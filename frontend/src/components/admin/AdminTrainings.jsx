@@ -57,6 +57,7 @@ export default function AdminTrainings() {
   const [formError, setFormError] = useState("");
 
   const [attendeesModal, setAttendeesModal] = useState(null);
+  const [actionStatus, setActionStatus] = useState(null);
   useBodyScrollLock(showAddModal || Boolean(attendeesModal));
 
   const loadTrainings = async () => {
@@ -122,8 +123,13 @@ export default function AdminTrainings() {
       await adminAPI.deleteTraining(trainingId);
       setTrainings((prev) => prev.filter((training) => training.trainingId !== trainingId));
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to delete training");
+      setActionStatus({
+        type: "error",
+        text: err.response?.data?.message || "Failed to delete training.",
+      });
+      return;
     }
+    setActionStatus({ type: "success", text: "Training deleted." });
   };
 
   const openAttendeesModal = async (training) => {
@@ -164,6 +170,7 @@ export default function AdminTrainings() {
               type="button"
               onClick={() => {
                 setFormError("");
+                setActionStatus(null);
                 setShowAddModal(true);
               }}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-ocean text-white font-semibold shadow hover:bg-ocean/90"
@@ -185,6 +192,17 @@ export default function AdminTrainings() {
             </div>
           </div>
         </div>
+        {actionStatus?.text && (
+          <div
+            className={`rounded-3xl border px-4 py-3 text-sm ${
+              actionStatus.type === "error"
+                ? "border-rose/30 bg-rose/10 text-rose-700"
+                : "border-mint/40 bg-mint/10 text-emerald-700"
+            }`}
+          >
+            {actionStatus.text}
+          </div>
+        )}
 
         {loading ? (
           <div className="rounded-3xl border border-dashed border-gray-200 p-10 text-center text-gray-500 bg-white">

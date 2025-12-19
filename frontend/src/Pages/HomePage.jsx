@@ -16,9 +16,9 @@ export default function HomePage() {
   };
 
   return (
-    <main className="bg-pearl min-h-screen">
+    <main id="home" className="bg-pearl min-h-screen">
       <Navbar />
-      <Hero onGetStarted={handleGetStarted} />
+      <Hero onGetStarted={handleGetStarted} showCTA />
       <Features />
       <AboutUs />
       <Footer />

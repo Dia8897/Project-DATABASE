@@ -7,6 +7,7 @@ import ClientPage from "./Pages/ClientPage";
 import HostProfilePage from "./Pages/HostProfilePage";
 import TeamLeaderEventPage from "./Pages/TeamLeaderEventPage";
 import TrainingsPage from "./Pages/TrainingsPage";
+import AboutPage from "./Pages/AboutPage";
 
 const RequireRole = ({ role, roles, children }) => {
   const allowedRoles = roles || (role ? [role] : null);
@@ -32,6 +33,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/about" element={<AboutPage />} />
         <Route path="/events" element={<EventsPage />} />
         <Route
           path="/admin"

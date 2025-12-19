@@ -149,6 +149,7 @@ export default function HostApplications() {
   const [pendingLoading, setPendingLoading] = useState(true);
   const [pendingError, setPendingError] = useState("");
   const [hostActionState, setHostActionState] = useState(null);
+  const [actionStatus, setActionStatus] = useState(null);
   const [onboardingFilter, setOnboardingFilter] = useState("all");
   const [acceptModal, setAcceptModal] = useState(null);
   useBodyScrollLock(Boolean(profileModal || hostActionState || acceptModal));
@@ -260,8 +261,12 @@ export default function HostApplications() {
         assignedRole: requestedRole,
       });
       updateStatus(applicationId, "Accepted");
+      setActionStatus({ type: "success", text: "Application accepted." });
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to accept application");
+      setActionStatus({
+        type: "error",
+        text: err.response?.data?.message || "Failed to accept application.",
+      });
     }
   };
 
@@ -269,8 +274,12 @@ export default function HostApplications() {
     try {
       await api.put(`/applications/${applicationId}`, { status: "rejected" });
       updateStatus(applicationId, "Rejected");
+      setActionStatus({ type: "success", text: "Application rejected." });
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to reject application");
+      setActionStatus({
+        type: "error",
+        text: err.response?.data?.message || "Failed to reject application.",
+      });
     }
   };
 
@@ -280,7 +289,10 @@ export default function HostApplications() {
       const { data } = await api.get(`/users/${app.userId}/overview`);
       setProfileModal({ ...app, overview: data });
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to load profile");
+      setActionStatus({
+        type: "error",
+        text: err.response?.data?.message || "Failed to load profile.",
+      });
     } finally {
       setProfileLoading(false);
     }
@@ -295,8 +307,15 @@ export default function HostApplications() {
         await adminAPI.blockHostAccount(userId);
       }
       setPendingHosts((prev) => prev.filter((host) => host.userId !== userId));
+      setActionStatus({
+        type: "success",
+        text: action === "approve" ? "Host approved." : "Host blocked.",
+      });
     } catch (err) {
-      alert(err.response?.data?.message || `Failed to ${action} host`);
+      setActionStatus({
+        type: "error",
+        text: err.response?.data?.message || `Failed to ${action} host.`,
+      });
     } finally {
       setHostActionState(null);
     }
@@ -394,6 +413,17 @@ export default function HostApplications() {
             </div>
           </div>
         </div>
+        {actionStatus?.text && (
+          <div
+            className={`max-w-6xl mx-auto mt-4 rounded-2xl border px-4 py-3 text-sm ${
+              actionStatus.type === "error"
+                ? "border-rose/30 bg-rose/10 text-rose-700"
+                : "border-mint/40 bg-mint/10 text-emerald-700"
+            }`}
+          >
+            {actionStatus.text}
+          </div>
+        )}
       </section>
 
       {activeView === "onboarding" ? (

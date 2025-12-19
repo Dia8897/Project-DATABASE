@@ -69,29 +69,27 @@ export default function Navbar() {
     const isLoggedIn = Boolean(session.token && session.user);
     const displayRole = session.userType ? session.userType.replace(/_/g, " ") : null;
 
-    const eventsLink =
-        session.userType === "admin"
-            ? { label: "Review Requests", path: "/admin" }
-            : session.userType === "client"
-            ? { label: "My Requests", path: "/client" }
-            : session.userType === "host"
-            ? { label: "Browse Events", path: "/events" }
-            : { label: "Our Events", path: "/events" };
+    const getDashboardPath = () => {
+        if (session.userType === "admin") return "/admin";
+        if (session.userType === "client") return "/client";
+        if (session.userType === "host" || session.userType === "user") return "/events";
+        if (session.userType === "team_leader") return "/profile";
+        return "/";
+    };
 
-    const homeLink =
-        session.userType === "admin"
-            ? { label: "Admin Home", path: "/admin" }
-            : session.userType === "client"
-            ? { label: "Client Home", path: "/client" }
-            : session.userType === "host"
-            ? { label: "Host Home", path: "/profile" }
-            : { label: "Home", path: "/" };
+    const primaryLink = isLoggedIn ? getDashboardPath() : "/";
 
-    const navLinks = [
-        homeLink,
-        { label: "About", path: "#about" },
-        { label: "Contact", path: "#contact" },
-    ];
+    const navLinks = isLoggedIn
+        ? [
+              { label: "Dashboard", path: getDashboardPath() },
+              { label: "About", path: "/about" },
+              { label: "Contact", path: "#contact" },
+          ]
+        : [
+              { label: "Home", path: "#home" },
+              { label: "About", path: "#about" },
+              { label: "Contact", path: "#contact" },
+          ];
 
     const scrollToSection = (hash) => {
         if (!hash?.startsWith("#") || typeof document === "undefined") return false;
@@ -176,7 +174,7 @@ export default function Navbar() {
         <header className="w-full fixed top-0 left-0 z-50 bg-rose shadow-sm">
             <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
                 {/* Logo */}
-                <Link to="/" className="text-2xl font-bold text-white select-none">
+                <Link to={primaryLink} className="text-2xl font-bold text-white select-none">
                     Gatherly
                 </Link>
 

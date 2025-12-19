@@ -31,6 +31,7 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
   const [needsRide, setNeedsRide] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [generalError, setGeneralError] = useState("");
   const [resolvedOutfit, setResolvedOutfit] = useState(null);
   const [outfitError, setOutfitError] = useState("");
   const [outfitLoading, setOutfitLoading] = useState(false);
@@ -131,9 +132,10 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitting) return;
+    setGeneralError("");
     if (!validate()) return;
     if (!canSubmitWithProfile) {
-      alert("Your host profile must be active before applying.");
+      setGeneralError("Your host profile must be active before applying.");
       return;
     }
 
@@ -162,8 +164,9 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
       setRequestDress(false);
       setNeedsRide(false);
       setErrors({});
+      setGeneralError("");
     } catch (err) {
-      alert('Application failed: ' + (err.response?.data?.message || 'Unknown error'));
+      setGeneralError(err.response?.data?.message || "Application failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -237,6 +240,11 @@ export default function ApplyModal({ event, onClose, onSubmitted, currentUser })
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-8">
+          {generalError && (
+            <div className="rounded-2xl border border-rose/30 bg-rose/10 px-4 py-3 text-sm text-rose-700">
+              {generalError}
+            </div>
+          )}
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-800">
