@@ -189,6 +189,7 @@ export default function EventRequests() {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewError, setReviewError] = useState("");
   const [reviewUpdating, setReviewUpdating] = useState(null);
+  const [actionStatus, setActionStatus] = useState(null);
   useBodyScrollLock(Boolean(detailModal || transportModal || conflictModal));
 
 
@@ -277,8 +278,12 @@ export default function EventRequests() {
     try {
       await api.put(`/events/${requestId}`, { status: "accepted" });
       updateRequestStatus(requestId, "Accepted");
+      setActionStatus({ type: "success", text: "Event approved successfully." });
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to approve event");
+      setActionStatus({
+        type: "error",
+        text: err.response?.data?.message || "Failed to approve event.",
+      });
     }
   };
 
@@ -286,8 +291,12 @@ export default function EventRequests() {
     try {
       await api.put(`/events/${requestId}`, { status: "rejected" });
       updateRequestStatus(requestId, "Rejected");
+      setActionStatus({ type: "success", text: "Event rejected." });
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to reject event");
+      setActionStatus({
+        type: "error",
+        text: err.response?.data?.message || "Failed to reject event.",
+      });
     }
   };
 
@@ -351,6 +360,7 @@ export default function EventRequests() {
             : app
         )
       );
+      setActionStatus({ type: "success", text: "Application accepted." });
     } catch (err) {
       // Check for scheduling conflict (409)
       if (err.response?.status === 409) {
@@ -364,11 +374,13 @@ export default function EventRequests() {
           applicationId,
           requestedRole
         });
-        return; // Don't show alert
+        return;
       }
 
-      // For other errors, show alert
-      alert(err.response?.data?.message || "Failed to accept application");
+      setActionStatus({
+        type: "error",
+        text: err.response?.data?.message || "Failed to accept application.",
+      });
     }
   };
 
@@ -383,8 +395,12 @@ export default function EventRequests() {
             : app
         )
       );
+      setActionStatus({ type: "success", text: "Application rejected." });
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to reject application");
+      setActionStatus({
+        type: "error",
+        text: err.response?.data?.message || "Failed to reject application.",
+      });
     }
   };
 
@@ -467,8 +483,12 @@ export default function EventRequests() {
           review.reviewerId === reviewerId ? { ...review, visibility } : review
         )
       );
+      setActionStatus({ type: "success", text: "Review visibility updated." });
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to update review visibility");
+      setActionStatus({
+        type: "error",
+        text: err.response?.data?.message || "Failed to update review visibility.",
+      });
     } finally {
       setReviewUpdating(null);
     }
@@ -504,6 +524,17 @@ export default function EventRequests() {
 
           </div>
         </div>
+        {actionStatus?.text && (
+          <div
+            className={`max-w-6xl mx-auto mt-4 rounded-2xl border px-4 py-3 text-sm ${
+              actionStatus.type === "error"
+                ? "border-rose/30 bg-rose/10 text-rose-700"
+                : "border-mint/40 bg-mint/10 text-emerald-700"
+            }`}
+          >
+            {actionStatus.text}
+          </div>
+        )}
       </section>
 
       <section className="px-4 pb-16">

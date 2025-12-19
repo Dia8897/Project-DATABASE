@@ -221,6 +221,7 @@ export default function EventsPage() {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [detailsEvent, setDetailsEvent] = useState(null);
   const [lastApplication, setLastApplication] = useState(null);
+  const [sessionWarning, setSessionWarning] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [applications, setApplications] = useState([]);
 
@@ -396,17 +397,18 @@ export default function EventsPage() {
 
   const ensureHostSession = () => {
     if (!loggedInUser) {
-      alert("Please sign in as a host to apply.");
+      setSessionWarning("Please sign in as a host to apply.");
       return false;
     }
     if (loggedInUser.role !== "user") {
-      alert("Only host accounts can apply to events.");
+      setSessionWarning("Only host accounts can apply to events.");
       return false;
     }
     if (!hostReady) {
-      alert("Your host account is not active yet.");
+      setSessionWarning("Your host account is not active yet.");
       return false;
     }
+    setSessionWarning("");
     return true;
   };
 
@@ -579,6 +581,11 @@ export default function EventsPage() {
                     </div>
                   ))}
                 </div>
+                {sessionWarning && (
+                  <div className="rounded-2xl border border-rose/30 bg-rose/10 px-4 py-3 text-sm text-rose-700">
+                    {sessionWarning}
+                  </div>
+                )}
               </div>
               {spotlightEvent && (
                 <div className="bg-sky text-gray-900 rounded-3xl p-6 w-full lg:w-auto shadow-inner border border-sky space-y-4">

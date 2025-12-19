@@ -1,7 +1,7 @@
 import React from "react";
 import { Star, ShieldCheck, Users } from "lucide-react";
 
-export default function HeroSection({ onGetStarted }) {
+export default function HeroSection({ onGetStarted, showCTA = true }) {
     return (
         <section className="w-full bg-cream pt-32 pb-20 px-4">
             {/* MAIN HERO CONTENT */}
@@ -19,12 +19,14 @@ export default function HeroSection({ onGetStarted }) {
                 </p>
 
                 {/* GET STARTED BUTTON */}
-                <button
-                    onClick={() => onGetStarted("host")}
-                    className="px-10 py-4 bg-ocean text-white text-lg rounded-xl font-semibold shadow-lg hover:bg-ocean/80 transition"
-                >
-                    Get Started
-                </button>
+                {showCTA && (
+                    <button
+                        onClick={() => onGetStarted?.("host")}
+                        className="px-10 py-4 bg-ocean text-white text-lg rounded-xl font-semibold shadow-lg hover:bg-ocean/80 transition"
+                    >
+                        Get Started
+                    </button>
+                )}
             </div>
 
             {/* INFORMATION BOXES */}

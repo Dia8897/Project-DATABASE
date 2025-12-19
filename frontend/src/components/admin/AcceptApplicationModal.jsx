@@ -5,6 +5,7 @@ export default function AcceptApplicationModal({ application, onClose, onAccepte
   const [provideTransportation, setProvideTransportation] = useState(false);
   const [vehicleCapacity, setVehicleCapacity] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const handleAccept = async () => {
     setLoading(true);
@@ -16,9 +17,10 @@ export default function AcceptApplicationModal({ application, onClose, onAccepte
         vehicleCapacity: provideTransportation ? vehicleCapacity : undefined,
       });
       onAccepted?.();
+      setErrorMessage("");
       onClose();
     } catch (err) {
-      alert("Failed to accept application: " + (err.response?.data?.message || "Unknown error"));
+      setErrorMessage(err.response?.data?.message || "Failed to accept application.");
     } finally {
       setLoading(false);
     }
@@ -31,9 +33,10 @@ export default function AcceptApplicationModal({ application, onClose, onAccepte
         status: "rejected",
       });
       onAccepted?.();
+      setErrorMessage("");
       onClose();
     } catch (err) {
-      alert("Failed to reject application: " + (err.response?.data?.message || "Unknown error"));
+      setErrorMessage(err.response?.data?.message || "Failed to reject application.");
     } finally {
       setLoading(false);
     }
@@ -50,6 +53,11 @@ export default function AcceptApplicationModal({ application, onClose, onAccepte
         </div>
 
         <div className="p-6 space-y-4">
+          {errorMessage && (
+            <div className="rounded-xl border border-rose/30 bg-rose/10 px-4 py-2 text-sm text-rose-700">
+              {errorMessage}
+            </div>
+          )}
           {application.requestTransportation && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <p className="text-sm font-medium text-blue-800 mb-2">
