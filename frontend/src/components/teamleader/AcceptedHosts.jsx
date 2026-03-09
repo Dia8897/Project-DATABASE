@@ -35,7 +35,7 @@ export default function AcceptedHosts({
 
   return (
     <div className="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
-      {/* Header */}
+      
       <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-ocean font-semibold">
